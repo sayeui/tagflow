@@ -15,7 +15,7 @@
 ## 项目简介
 
 TagFlow 是一个基于六边形架构设计的本地文件资源管理工具，通过层级标签系统实现对多源文件（本地磁盘、WebDAV）的统一管理与检索。系统采用 Rust 后端 + Vue 3 前端的技术栈，提供高性能的增量扫描和灵活的标签分类能力。
-[产品蓝图](doc/TagFlow_Product_Blueprint.html)
+[产品蓝图](https://gemini.google.com/share/c1e4d6b68b2c)
 
 ### 核心特性
 
