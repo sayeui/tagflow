@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TagFlow: 轻量级标签化资源管理系统 - 需求规格说明书 (PRD)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', 'Noto Sans SC', sans-serif; background-color: #f8fafc; color: #334155; }
+        .tab-active { border-bottom: 2px solid #3b82f6; color: #1d4ed8; font-weight: 600; }
+        .tab-inactive { color: #64748b; hover:color: #334155; }
+        .chart-container { position: relative; width: 100%; max-width: 600px; margin: 0 auto; height: 300px; max-height: 400px; }
+        /* Custom scrollbar for webkit */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .flow-arrow::after {
+            content: '→';
+            position: absolute;
+            right: -20px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+            font-size: 1.5rem;
+        }
+        .last-flow::after { content: ''; }
+    </style>
+    <!-- Chosen Palette: Warm Neutral & Tech Blue (#f8fafc bg, #3b82f6 primary) for a clean, documentation-focused aesthetic. -->
+    <!-- Application Structure Plan: Dashboard-style PRD. 
+         1. Executive Summary: High-level vision.
+         2. Analysis & Research: Competitive landscape and tech constraints.
+         3. Feature Specs: Interactive requirement list.
+         4. Architecture: Visual data flow and tech stack.
+         5. UI Mockup: Live HTML implementation of the proposed interface to demonstrate UX.
+         This structure moves from abstract goals to concrete visuals. -->
+    <!-- Visualization & Content Choices:
+         - Radar Chart: To compare "TagFlow" vs Traditional NAS managers (Flexibility vs Resources).
+         - Bar Chart: Expected resource usage analysis.
+         - HTML Wireframes: To visualize the UI without images/SVG.
+         - Flow Blocks: To visualize the data scanning pipeline using CSS. 
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold mr-3">TF</div>
+                    <div>
+                        <h1 class="text-xl font-bold text-slate-900">TagFlow</h1>
+                        <p class="text-xs text-slate-500">轻量级标签化资源管理系统 PRD</p>
+                    </div>
+                </div>
+                <nav class="hidden md:flex space-x-8">
+                    <button onclick="switchTab('vision')" id="tab-vision" class="tab-active px-3 py-2 text-sm font-medium transition-colors">产品愿景</button>
+                    <button onclick="switchTab('analysis')" id="tab-analysis" class="tab-inactive px-3 py-2 text-sm font-medium transition-colors">竞品与分析</button>
+                    <button onclick="switchTab('features')" id="tab-features" class="tab-inactive px-3 py-2 text-sm font-medium transition-colors">功能规格</button>
+                    <button onclick="switchTab('architecture')" id="tab-architecture" class="tab-inactive px-3 py-2 text-sm font-medium transition-colors">技术架构</button>
+                    <button onclick="switchTab('mockup')" id="tab-mockup" class="tab-inactive px-3 py-2 text-sm font-medium transition-colors">界面原型</button>
+                </nav>
+            </div>
+        </div>
+        <!-- Mobile Nav Placeholder -->
+        <div class="md:hidden border-t px-4 py-2 bg-slate-50 flex overflow-x-auto space-x-4">
+            <button onclick="switchTab('vision')" class="whitespace-nowrap text-sm font-medium text-blue-600">愿景</button>
+            <button onclick="switchTab('features')" class="whitespace-nowrap text-sm font-medium text-slate-600">功能</button>
+            <button onclick="switchTab('mockup')" class="whitespace-nowrap text-sm font-medium text-slate-600">原型</button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow bg-slate-50 p-4 sm:p-8">
+        <div class="max-w-7xl mx-auto">
+            
+            <!-- SECTION: PRODUCT VISION -->
+            <section id="vision" class="space-y-8 animate-fade-in">
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+                    <h2 class="text-2xl font-bold text-slate-900 mb-4">产品概述 (Executive Summary)</h2>
+                    <p class="text-slate-600 mb-6 leading-relaxed">
+                        TagFlow 旨在为个人用户（HomeLab, NAS 爱好者）提供一个<strong>轻量级、标签优先</strong>的非侵入式文件管理方案。它不接管底层文件存储，而是通过扫描现有目录（本地或 WebDAV），建立基于标签的索引层，解决传统文件夹层级管理在面对跨维度检索时的局限性。
+                    </p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+                        <div class="bg-blue-50 p-6 rounded-lg border border-blue-100">
+                            <h3 class="font-bold text-blue-800 mb-2">🎯 核心痛点</h3>
+                            <ul class="text-sm text-blue-700 space-y-2">
+                                <li>• 文件夹层级过深，难以找回旧资源。</li>
+                                <li>• 同一个文件属于多个分类（如"照片"既属于"2023"也属于"家庭"），文件夹难以表达。</li>
+                                <li>• 现有方案（如 Nextcloud）过于厚重，资源占用高。</li>
+                            </ul>
+                        </div>
+                        <div class="bg-emerald-50 p-6 rounded-lg border border-emerald-100">
+                            <h3 class="font-bold text-emerald-800 mb-2">💡 解决方案</h3>
+                            <ul class="text-sm text-emerald-700 space-y-2">
+                                <li>• <strong>虚拟标签层：</strong>文件物理位置不变，逻辑上通过标签管理。</li>
+                                <li>• <strong>自动化元数据：</strong>自动将拓展名、目录层级转化为基础标签。</li>
+                                <li>• <strong>极简架构：</strong>Docker 单容器部署，低内存占用。</li>
+                            </ul>
+                        </div>
+                        <div class="bg-purple-50 p-6 rounded-lg border border-purple-100">
+                            <h3 class="font-bold text-purple-800 mb-2">🚀 目标用户</h3>
+                            <ul class="text-sm text-purple-700 space-y-2">
+                                <li>• NAS 用户 (群晖, Unraid, TrueNAS)。</li>
+                                <li>• 拥有大量素材（图片、文档、视频）的设计师或开发者。</li>
+                                <li>• 整理癖爱好者。</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Strategic Positioning Chart -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <h3 class="text-lg font-bold text-slate-800 mb-4">产品定位分析</h3>
+                    <p class="text-sm text-slate-500 mb-6">相比于企业级 DAM 系统或简单的文件浏览器，TagFlow 专注于“个人轻量化管理”。</p>
+                    <div class="flex flex-col md:flex-row items-center justify-center gap-8">
+                        <div class="w-full md:w-1/2 chart-container">
+                            <canvas id="radarChart"></canvas>
+                        </div>
+                        <div class="w-full md:w-1/2 space-y-4">
+                            <div class="p-4 bg-slate-50 rounded border border-slate-200">
+                                <h4 class="font-semibold text-sm">轻量级 (Lightweight)</h4>
+                                <p class="text-xs text-slate-500 mt-1">摒弃全文检索、多租户权限等重资源功能，专注于元数据索引。数据库推荐 SQLite。</p>
+                            </div>
+                            <div class="p-4 bg-slate-50 rounded border border-slate-200">
+                                <h4 class="font-semibold text-sm">非侵入式 (Non-Intrusive)</h4>
+                                <p class="text-xs text-slate-500 mt-1">只读模式扫描，不修改源文件。删除标签不等于删除文件。数据迁移零成本。</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION: ANALYSIS -->
+            <section id="analysis" class="hidden space-y-8 animate-fade-in">
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+                    <h2 class="text-2xl font-bold text-slate-900 mb-6">竞品参考与功能取舍</h2>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-sm text-left text-slate-500">
+                            <thead class="text-xs text-slate-700 uppercase bg-slate-50">
+                                <tr>
+                                    <th class="px-6 py-3">特性</th>
+                                    <th class="px-6 py-3">Eagle / Billfish (本地客户端)</th>
+                                    <th class="px-6 py-3">Nextcloud / FileBrowser (NAS)</th>
+                                    <th class="px-6 py-3 font-bold text-blue-600">TagFlow (本项目)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="bg-white border-b">
+                                    <td class="px-6 py-4 font-medium text-slate-900">部署方式</td>
+                                    <td class="px-6 py-4">桌面客户端 (PC/Mac)</td>
+                                    <td class="px-6 py-4">Web 服务 (Docker)</td>
+                                    <td class="px-6 py-4 bg-blue-50 text-blue-700 font-semibold">Web 服务 (Docker)</td>
+                                </tr>
+                                <tr class="bg-white border-b">
+                                    <td class="px-6 py-4 font-medium text-slate-900">文件管理逻辑</td>
+                                    <td class="px-6 py-4">库文件接管 (需导入)</td>
+                                    <td class="px-6 py-4">纯文件夹映射</td>
+                                    <td class="px-6 py-4 bg-blue-50 text-blue-700 font-semibold">映射 + 标签层 (无需导入)</td>
+                                </tr>
+                                <tr class="bg-white border-b">
+                                    <td class="px-6 py-4 font-medium text-slate-900">资源消耗</td>
+                                    <td class="px-6 py-4">中 (依赖本地显卡/内存)</td>
+                                    <td class="px-6 py-4">高 (PHP/Java, 数据库重)</td>
+                                    <td class="px-6 py-4 bg-blue-50 text-blue-700 font-semibold">极低 (Go/Rust + SQLite)</td>
+                                </tr>
+                                <tr class="bg-white">
+                                    <td class="px-6 py-4 font-medium text-slate-900">核心交互</td>
+                                    <td class="px-6 py-4">极佳 (拖拽、瀑布流)</td>
+                                    <td class="px-6 py-4">一般 (列表为主)</td>
+                                    <td class="px-6 py-4 bg-blue-50 text-blue-700 font-semibold">良好 (专注筛选效率)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-white p-6 rounded-xl border border-slate-200">
+                        <h3 class="font-bold text-slate-800 mb-4">主要约束 (Constraints)</h3>
+                        <ul class="list-disc list-inside space-y-2 text-sm text-slate-600">
+                            <li><strong>单用户模型：</strong> 暂不设计复杂的用户权限系统，仅需全局密码保护。</li>
+                            <li><strong>性能边界：</strong> 针对 10万+ 文件级别进行优化，但不支持全文内容检索（OCR/Elasticsearch）。</li>
+                            <li><strong>存储协议：</strong> 必须支持本地挂载卷（Docker Volume）和 WebDAV 挂载。</li>
+                        </ul>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl border border-slate-200">
+                        <h3 class="font-bold text-slate-800 mb-4">技术选型建议</h3>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium">后端 (Go/Rust)</span>
+                            <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">推荐</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mb-4">编译为单一二进制文件，内存占用 < 50MB。</p>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium">数据库 (SQLite)</span>
+                            <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">推荐</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mb-4">无需单独部署 DB 容器，数据文件易备份。</p>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-medium">前端 (Vue3/React + Tailwind)</span>
+                            <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">推荐</span>
+                        </div>
+                        <p class="text-xs text-slate-500">SPA 架构，操作响应快。</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION: FEATURES -->
+            <section id="features" class="hidden space-y-8 animate-fade-in">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-2xl font-bold text-slate-900">功能规格列表 (Feature Specifications)</h2>
+                    <div class="flex space-x-2">
+                        <span class="px-3 py-1 bg-red-100 text-red-700 rounded text-xs font-bold">P0: 必须</span>
+                        <span class="px-3 py-1 bg-yellow-100 text-yellow-700 rounded text-xs font-bold">P1: 重要</span>
+                        <span class="px-3 py-1 bg-blue-100 text-blue-700 rounded text-xs font-bold">P2: 待定</span>
+                    </div>
+                </div>
+
+                <!-- Interactive Filters -->
+                <div class="flex space-x-4 mb-4">
+                    <button onclick="filterFeatures('all')" class="text-sm font-medium text-slate-600 hover:text-blue-600">全部</button>
+                    <button onclick="filterFeatures('Resource')" class="text-sm font-medium text-slate-600 hover:text-blue-600">资源库管理</button>
+                    <button onclick="filterFeatures('Tag')" class="text-sm font-medium text-slate-600 hover:text-blue-600">标签系统</button>
+                    <button onclick="filterFeatures('View')" class="text-sm font-medium text-slate-600 hover:text-blue-600">展示交互</button>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <table class="min-w-full divide-y divide-slate-200" id="featureTable">
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">ID</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">模块</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">功能描述</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">优先级</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">验收标准</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-slate-200" id="featureBody">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Auto-Tagging Logic Detail -->
+                <div class="bg-blue-50 border border-blue-100 rounded-xl p-6 mt-8">
+                    <h3 class="text-lg font-bold text-blue-800 mb-3">🤖 核心逻辑：自动标签策略</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                        <div class="bg-white p-4 rounded shadow-sm">
+                            <h4 class="font-bold text-slate-700 mb-2">1. 拓展名映射</h4>
+                            <p class="text-slate-500">文件入库时，自动提取后缀名生成标签。</p>
+                            <code class="block mt-2 bg-slate-100 p-2 rounded text-xs">.jpg -> #jpg, #image</code>
+                        </div>
+                        <div class="bg-white p-4 rounded shadow-sm">
+                            <h4 class="font-bold text-slate-700 mb-2">2. 路径映射</h4>
+                            <p class="text-slate-500">将文件夹层级转换为层级标签。</p>
+                            <code class="block mt-2 bg-slate-100 p-2 rounded text-xs">/Photos/2023/Travel -> #Photos, #2023, #Travel</code>
+                        </div>
+                        <div class="bg-white p-4 rounded shadow-sm">
+                            <h4 class="font-bold text-slate-700 mb-2">3. 基础元数据</h4>
+                            <p class="text-slate-500">对于媒体文件，提取简单元数据。</p>
+                            <code class="block mt-2 bg-slate-100 p-2 rounded text-xs">FileSize > 1GB -> #LargeFile</code>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION: ARCHITECTURE -->
+            <section id="architecture" class="hidden space-y-8 animate-fade-in">
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+                    <h2 class="text-2xl font-bold text-slate-900 mb-6">系统架构与数据流</h2>
+                    
+                    <!-- Scanner Pipeline Visualization -->
+                    <div class="mb-8">
+                        <h3 class="text-lg font-semibold text-slate-700 mb-4">数据索引流程 (Scanner Pipeline)</h3>
+                        <div class="flex flex-col md:flex-row justify-between items-center bg-slate-50 p-6 rounded-xl border border-slate-200 space-y-4 md:space-y-0">
+                            <!-- Step 1 -->
+                            <div class="relative flex flex-col items-center w-48 text-center flow-arrow">
+                                <div class="w-12 h-12 bg-white border-2 border-slate-300 rounded-full flex items-center justify-center mb-2 font-bold text-slate-600">1</div>
+                                <h4 class="font-bold text-sm">Mount Point</h4>
+                                <p class="text-xs text-slate-500">Docker Volume / WebDAV</p>
+                            </div>
+                            <!-- Step 2 -->
+                            <div class="relative flex flex-col items-center w-48 text-center flow-arrow">
+                                <div class="w-12 h-12 bg-blue-100 border-2 border-blue-500 rounded-full flex items-center justify-center mb-2 font-bold text-blue-600">2</div>
+                                <h4 class="font-bold text-sm">Watcher/Scanner</h4>
+                                <p class="text-xs text-slate-500">检测文件变动 (Inotify/Polling)</p>
+                            </div>
+                            <!-- Step 3 -->
+                            <div class="relative flex flex-col items-center w-48 text-center flow-arrow">
+                                <div class="w-12 h-12 bg-purple-100 border-2 border-purple-500 rounded-full flex items-center justify-center mb-2 font-bold text-purple-600">3</div>
+                                <h4 class="font-bold text-sm">Meta Extractor</h4>
+                                <p class="text-xs text-slate-500">生成基础标签 & 缩略图</p>
+                            </div>
+                            <!-- Step 4 -->
+                            <div class="relative flex flex-col items-center w-48 text-center last-flow">
+                                <div class="w-12 h-12 bg-green-100 border-2 border-green-500 rounded-full flex items-center justify-center mb-2 font-bold text-green-600">4</div>
+                                <h4 class="font-bold text-sm">SQLite DB</h4>
+                                <p class="text-xs text-slate-500">存储路径与标签关系</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ER Diagram Concept -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                            <h3 class="text-lg font-semibold text-slate-700 mb-4">核心数据模型 (ER Concept)</h3>
+                            <div class="bg-slate-900 text-slate-300 p-6 rounded-lg font-mono text-sm leading-relaxed overflow-x-auto">
+                                <div class="mb-4">
+                                    <span class="text-yellow-400">Table</span> Libraries {<br>
+                                    &nbsp;&nbsp;id: INT<br>
+                                    &nbsp;&nbsp;path: STRING<br>
+                                    &nbsp;&nbsp;type: 'local' | 'webdav'<br>
+                                    }
+                                </div>
+                                <div class="mb-4">
+                                    <span class="text-yellow-400">Table</span> Files {<br>
+                                    &nbsp;&nbsp;id: INT<br>
+                                    &nbsp;&nbsp;library_id: INT<br>
+                                    &nbsp;&nbsp;rel_path: STRING <span class="text-slate-500">// 相对路径</span><br>
+                                    &nbsp;&nbsp;hash: STRING <span class="text-slate-500">// 快速哈希用于去重</span><br>
+                                    &nbsp;&nbsp;meta_json: JSON <span class="text-slate-500">// 宽表存储额外信息</span><br>
+                                    }
+                                </div>
+                                <div>
+                                    <span class="text-yellow-400">Table</span> File_Tags {<br>
+                                    &nbsp;&nbsp;file_id: INT<br>
+                                    &nbsp;&nbsp;tag_id: INT<br>
+                                    &nbsp;&nbsp;source: 'auto' | 'user'<br>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold text-slate-700 mb-4">技术栈推荐</h3>
+                            <ul class="space-y-3">
+                                <li class="flex items-start">
+                                    <span class="w-24 font-bold text-slate-800 text-sm">Backend</span>
+                                    <span class="text-sm text-slate-600"><strong>Go (Gin/Fiber)</strong> - 编译产物小，并发处理文件扫描效率高，跨平台容易。</span>
+                                </li>
+                                <li class="flex items-start">
+                                    <span class="w-24 font-bold text-slate-800 text-sm">Database</span>
+                                    <span class="text-sm text-slate-600"><strong>SQLite + WAL Mode</strong> - 足够处理 10-50万行数据，零运维成本。</span>
+                                </li>
+                                <li class="flex items-start">
+                                    <span class="w-24 font-bold text-slate-800 text-sm">Image Proc</span>
+                                    <span class="text-sm text-slate-600"><strong>Vips / Imaging</strong> - 必须在后端生成缩略图，避免前端加载大图卡顿。</span>
+                                </li>
+                                <li class="flex items-start">
+                                    <span class="w-24 font-bold text-slate-800 text-sm">Frontend</span>
+                                    <span class="text-sm text-slate-600"><strong>React/Vue + Tailwind</strong> - 响应式布局，虚拟滚动列表（Virtual Scroller）是必须的，以支持大文件列表。</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION: UI MOCKUP -->
+            <section id="mockup" class="hidden space-y-6 animate-fade-in">
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                    <h2 class="text-2xl font-bold text-slate-900 mb-2">界面原型 (Low-Fidelity Prototype)</h2>
+                    <p class="text-sm text-slate-500 mb-6">以下是核心界面的 HTML 交互演示，模拟实际应用的布局逻辑。</p>
+
+                    <!-- Mockup Window -->
+                    <div class="border border-slate-300 rounded-lg shadow-lg overflow-hidden flex flex-col h-[600px] bg-white">
+                        <!-- Mockup Header -->
+                        <div class="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4">
+                            <div class="flex items-center space-x-4">
+                                <span class="font-bold text-blue-600">TagFlow</span>
+                                <div class="relative">
+                                    <input type="text" placeholder="搜索标签或文件名..." class="pl-8 pr-4 py-1.5 bg-slate-100 border-none rounded-md text-sm w-64 focus:ring-2 focus:ring-blue-500">
+                                    <span class="absolute left-2.5 top-2 text-slate-400 text-xs">🔍</span>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                <button class="p-1.5 text-slate-500 hover:bg-slate-100 rounded">📅</button>
+                                <button class="p-1.5 text-slate-500 hover:bg-slate-100 rounded">⚙️</button>
+                                <div class="w-8 h-8 bg-slate-200 rounded-full"></div>
+                            </div>
+                        </div>
+
+                        <!-- Mockup Body -->
+                        <div class="flex flex-grow overflow-hidden">
+                            <!-- Sidebar (Tags) -->
+                            <div class="w-56 bg-slate-50 border-r border-slate-200 flex flex-col">
+                                <div class="p-4 border-b border-slate-200">
+                                    <h3 class="text-xs font-bold text-slate-500 uppercase mb-3">资源库</h3>
+                                    <div class="space-y-1">
+                                        <div class="flex items-center px-2 py-1.5 bg-blue-100 text-blue-700 rounded text-sm cursor-pointer">
+                                            <span class="mr-2">📂</span> 本地 NAS
+                                        </div>
+                                        <div class="flex items-center px-2 py-1.5 text-slate-600 hover:bg-slate-200 rounded text-sm cursor-pointer">
+                                            <span class="mr-2">☁️</span> WebDAV 网盘
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="p-4 flex-grow overflow-y-auto">
+                                    <h3 class="text-xs font-bold text-slate-500 uppercase mb-3">标签过滤器</h3>
+                                    <!-- Tag Groups -->
+                                    <div class="mb-4">
+                                        <div class="text-xs font-semibold text-slate-400 mb-2">文件类型</div>
+                                        <div class="flex flex-wrap gap-2">
+                                            <span class="px-2 py-1 bg-white border border-slate-200 rounded text-xs text-slate-600 cursor-pointer hover:border-blue-400">#Image (420)</span>
+                                            <span class="px-2 py-1 bg-white border border-slate-200 rounded text-xs text-slate-600 cursor-pointer hover:border-blue-400">#Video (12)</span>
+                                            <span class="px-2 py-1 bg-white border border-slate-200 rounded text-xs text-slate-600 cursor-pointer hover:border-blue-400">#Doc (85)</span>
+                                        </div>
+                                    </div>
+                                    <div class="mb-4">
+                                        <div class="text-xs font-semibold text-slate-400 mb-2">自动标签</div>
+                                        <div class="flex flex-wrap gap-2">
+                                            <span class="px-2 py-1 bg-white border border-slate-200 rounded text-xs text-slate-600 cursor-pointer hover:border-blue-400">#2023</span>
+                                            <span class="px-2 py-1 bg-white border border-slate-200 rounded text-xs text-slate-600 cursor-pointer hover:border-blue-400">#Work</span>
+                                            <span class="px-2 py-1 bg-white border border-slate-200 rounded text-xs text-slate-600 cursor-pointer hover:border-blue-400">#ProjectA</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Main Grid -->
+                            <div class="flex-grow bg-white p-4 overflow-y-auto">
+                                <div class="flex justify-between items-center mb-4">
+                                    <h2 class="text-lg font-bold text-slate-800">所有文件 <span class="text-sm font-normal text-slate-400">(517 items)</span></h2>
+                                    <div class="flex space-x-2">
+                                        <select class="text-xs border border-slate-200 rounded px-2 py-1"><option>最近添加</option><option>名称排序</option></select>
+                                    </div>
+                                </div>
+
+                                <!-- Grid Items -->
+                                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                    <!-- Item 1 -->
+                                    <div class="group border border-slate-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow cursor-pointer relative">
+                                        <div class="h-32 bg-slate-100 flex items-center justify-center text-4xl text-slate-300">🖼️</div>
+                                        <div class="p-3">
+                                            <div class="text-sm font-medium text-slate-700 truncate">Design_Mockup_v2.png</div>
+                                            <div class="flex gap-1 mt-2">
+                                                <span class="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded">#Image</span>
+                                                <span class="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded">#Work</span>
+                                            </div>
+                                        </div>
+                                        <!-- Selection Checkbox -->
+                                        <div class="absolute top-2 right-2 w-5 h-5 border-2 border-white bg-slate-200 rounded-full opacity-0 group-hover:opacity-100"></div>
+                                    </div>
+                                    <!-- Item 2 -->
+                                    <div class="group border border-slate-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow cursor-pointer relative">
+                                        <div class="h-32 bg-slate-100 flex items-center justify-center text-4xl text-slate-300">📄</div>
+                                        <div class="p-3">
+                                            <div class="text-sm font-medium text-slate-700 truncate">Project_Plan_2024.pdf</div>
+                                            <div class="flex gap-1 mt-2">
+                                                <span class="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded">#PDF</span>
+                                                <span class="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded">#2024</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                     <!-- Item 3 -->
+                                     <div class="group border border-slate-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow cursor-pointer relative">
+                                        <div class="h-32 bg-slate-100 flex items-center justify-center text-4xl text-slate-300">🎥</div>
+                                        <div class="p-3">
+                                            <div class="text-sm font-medium text-slate-700 truncate">Demo_Video_Final.mp4</div>
+                                            <div class="flex gap-1 mt-2">
+                                                <span class="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded">#Video</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <!-- Ghost Items for visual balance -->
+                                    <div class="h-48 bg-slate-50 rounded-lg border border-dashed border-slate-200"></div>
+                                    <div class="h-48 bg-slate-50 rounded-lg border border-dashed border-slate-200"></div>
+                                </div>
+                            </div>
+
+                            <!-- Right Details Panel (Collapsible) -->
+                            <div class="hidden lg:block w-64 bg-white border-l border-slate-200 p-4">
+                                <div class="text-center mb-4">
+                                    <div class="w-24 h-24 bg-slate-100 rounded mx-auto mb-2 flex items-center justify-center text-2xl">🖼️</div>
+                                    <h3 class="text-sm font-bold text-slate-800 break-words">Design_Mockup_v2.png</h3>
+                                </div>
+                                <div class="space-y-4 text-xs">
+                                    <div>
+                                        <label class="block text-slate-400 mb-1">路径</label>
+                                        <div class="text-slate-600 font-mono bg-slate-50 p-1 rounded break-all">/mnt/data/work/images/</div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-slate-400 mb-1">大小</label>
+                                        <div class="text-slate-600">2.4 MB</div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-slate-400 mb-2">当前标签</label>
+                                        <div class="flex flex-wrap gap-1">
+                                            <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded flex items-center">#Image <button class="ml-1 text-blue-400">×</button></span>
+                                            <span class="px-2 py-1 bg-slate-100 text-slate-600 rounded flex items-center">#Work <button class="ml-1 text-slate-400">×</button></span>
+                                            <button class="px-2 py-1 border border-dashed border-slate-300 text-slate-400 rounded hover:bg-slate-50">+ Add</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 mt-12 py-8">
+        <div class="max-w-7xl mx-auto px-4 text-center">
+            <p class="text-slate-500 text-sm">TagFlow Project Requirements Document - Generated by AI Assistant</p>
+        </div>
+    </footer>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // --- Data Definitions ---
+        const featureData = [
+            { id: "F-001", module: "Resource", desc: "本地目录挂载与扫描 (Docker Volume)", priority: "P0", acceptance: "能识别映射路径下的所有文件结构" },
+            { id: "F-002", module: "Resource", desc: "WebDAV 协议支持", priority: "P1", acceptance: "可输入WebDAV地址/账号并成功索引" },
+            { id: "F-003", module: "Tag", desc: "自动标签：文件拓展名", priority: "P0", acceptance: ".jpg自动打上#jpg和#image" },
+            { id: "F-004", module: "Tag", desc: "自动标签：路径解析", priority: "P0", acceptance: "将父文件夹名称自动转换为标签" },
+            { id: "F-005", module: "Tag", desc: "手动标签管理", priority: "P0", acceptance: "用户可增删文件的标签，不修改源文件" },
+            { id: "F-006", module: "View", desc: "标签筛选器 (AND/OR逻辑)", priority: "P0", acceptance: "点击多个标签进行交集筛选" },
+            { id: "F-007", module: "View", desc: "瀑布流/网格视图切换", priority: "P1", acceptance: "支持不同密度的文件展示" },
+            { id: "F-008", module: "Sys", desc: "缩略图生成与缓存", priority: "P1", acceptance: "图片/视频文件显示缩略图而非通用图标" },
+            { id: "F-009", module: "Sys", desc: "定时自动重扫", priority: "P2", acceptance: "后台Cron任务检测文件变动" }
+        ];
+
+        // --- Core Interactions ---
+        function switchTab(tabId) {
+            // Hide all sections
+            ['vision', 'analysis', 'features', 'architecture', 'mockup'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            // Show selected section
+            document.getElementById(tabId).classList.remove('hidden');
+            
+            // Update Tab Styles
+            document.querySelectorAll('nav button').forEach(btn => {
+                btn.classList.remove('tab-active');
+                btn.classList.add('tab-inactive');
+            });
+            document.getElementById('tab-' + tabId).classList.add('tab-active');
+            document.getElementById('tab-' + tabId).classList.remove('tab-inactive');
+
+            // Render Charts if entering Vision tab
+            if (tabId === 'vision') {
+                renderCharts();
+            }
+        }
+
+        function filterFeatures(category) {
+            const tbody = document.getElementById('featureBody');
+            tbody.innerHTML = ''; // Clear existing
+
+            featureData.forEach(item => {
+                if (category === 'all' || item.module === category) {
+                    const tr = document.createElement('tr');
+                    tr.className = 'bg-white hover:bg-slate-50 transition-colors';
+                    
+                    let priorityClass = '';
+                    if(item.priority === 'P0') priorityClass = 'bg-red-100 text-red-800';
+                    else if(item.priority === 'P1') priorityClass = 'bg-yellow-100 text-yellow-800';
+                    else priorityClass = 'bg-blue-100 text-blue-800';
+
+                    tr.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-xs font-mono text-slate-500">${item.id}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-700 font-semibold">${item.module}</td>
+                        <td class="px-6 py-4 text-sm text-slate-600">${item.desc}</td>
+                        <td class="px-6 py-4 whitespace-nowrap"><span class="px-2 py-1 rounded text-xs font-bold ${priorityClass}">${item.priority}</span></td>
+                        <td class="px-6 py-4 text-xs text-slate-500 italic">${item.acceptance}</td>
+                    `;
+                    tbody.appendChild(tr);
+                }
+            });
+        }
+
+        // --- Chart Logic ---
+        let radarChartInstance = null;
+
+        function renderCharts() {
+            const ctx = document.getElementById('radarChart');
+            if (!ctx) return;
+            if (radarChartInstance) return; // Prevent re-rendering
+
+            radarChartInstance = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['部署轻便性', '检索灵活性', '资源占用(低)', '元数据丰富度', '多用户权限'],
+                    datasets: [{
+                        label: 'TagFlow (本方案)',
+                        data: [9, 8, 9, 6, 2],
+                        fill: true,
+                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                        borderColor: 'rgb(59, 130, 246)',
+                        pointBackgroundColor: 'rgb(59, 130, 246)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgb(59, 130, 246)'
+                    }, {
+                        label: 'Nextcloud (传统NAS)',
+                        data: [4, 3, 3, 5, 9],
+                        fill: true,
+                        backgroundColor: 'rgba(148, 163, 184, 0.2)',
+                        borderColor: 'rgb(148, 163, 184)',
+                        pointBackgroundColor: 'rgb(148, 163, 184)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgb(148, 163, 184)'
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    elements: {
+                        line: { borderWidth: 3 }
+                    },
+                    scales: {
+                        r: {
+                            angleLines: { display: true },
+                            suggestedMin: 0,
+                            suggestedMax: 10,
+                            grid: { color: '#e2e8f0' },
+                            pointLabels: {
+                                font: { size: 12, family: "'Inter', sans-serif" },
+                                color: '#475569'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: { position: 'bottom', labels: { usePointStyle: true, font: { family: "'Inter', sans-serif" } } }
+                    }
+                }
+            });
+        }
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // Default to Vision tab
+            switchTab('vision');
+            // Initial render of features
+            filterFeatures('all');
+        });
+
+    </script>
+</body>
+</html> 
