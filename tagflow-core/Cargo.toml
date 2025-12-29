@@ -14,3 +14,5 @@ thiserror = "1.0"
 anyhow = "1.0"
 tracing = "0.1"
 tracing-subscriber = "0.3"
+opendal = { version = "0.50", features = ["services-fs"] }
+futures-util = "0.3"
