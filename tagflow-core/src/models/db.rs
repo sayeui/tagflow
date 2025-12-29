@@ -3,6 +3,25 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum TagCategory {
+    Path,
+    Type,
+    User,
+    Time,
+}
+
+impl ToString for TagCategory {
+    fn to_string(&self) -> String {
+        match self {
+            TagCategory::Path => "path".to_string(),
+            TagCategory::Type => "type".to_string(),
+            TagCategory::User => "user".to_string(),
+            TagCategory::Time => "time".to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Library {
     pub id: i32,

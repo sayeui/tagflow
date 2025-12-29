@@ -1,11 +1,13 @@
 mod models;
 mod infra;
 mod engine;
+mod core;
+mod api;
 
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
-use engine::scanner::Scanner;
-use models::db::Library;
+use axum::{routing::get, Router};
+use std::net::SocketAddr;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -23,24 +25,18 @@ async fn main() -> anyhow::Result<()> {
 
     info!("数据库初始化成功并已应用迁移。");
 
-    // 1. 创建一个测试资源库 (如果不存在)
-    sqlx::query("INSERT OR IGNORE INTO libraries (id, name, protocol, base_path) VALUES (1, '测试库', 'local', './test_dir')")
-        .execute(&pool).await?;
+    // 构建路由
+    let app = Router::new()
+        .route("/api/v1/tags/tree", get(api::tag::get_tag_tree))
+        .route("/api/v1/files", get(api::file::list_files))
+        .with_state(pool);
 
-    // 2. 准备测试库对应的实体
-    let test_lib = Library {
-        id: 1,
-        name: "测试库".to_string(),
-        protocol: "local".to_string(),
-        base_path: "./test_dir".to_string(), // 请确保本地有这个文件夹
-        config_json: None,
-        last_scanned_at: None,
-    };
+    // 启动服务器
+    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
+    info!("API 服务器运行在 http://{}", addr);
 
-    // 3. 执行扫描
-    let scanner = Scanner::new(pool.clone());
-    scanner.scan_library(&test_lib).await?;
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, app).await?;
 
-    info!("扫描测试完成。");
     Ok(())
 }

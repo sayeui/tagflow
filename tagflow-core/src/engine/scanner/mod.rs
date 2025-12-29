@@ -3,6 +3,8 @@ use futures_util::stream::StreamExt;
 use sqlx::SqlitePool;
 use crate::models::db::Library;
 use crate::infra::storage::StorageManager;
+use crate::engine::tagger::PathTagger;
+use crate::core::tag::TagManager;
 use tracing::info;
 
 pub struct Scanner {
@@ -77,11 +79,20 @@ impl Scanner {
         let (parent, filename) = self.split_path(full_path);
         let ext = filename.split('.').next_back().map(|s| s.to_lowercase());
 
-        sqlx::query(
+        // 1. 插入文件记录
+        let res = sqlx::query(
             "INSERT INTO files (library_id, parent_path, filename, extension, size, mtime) VALUES (?, ?, ?, ?, ?, ?)"
         )
-        .bind(lib_id).bind(parent).bind(filename).bind(ext).bind(size).bind(mtime)
+        .bind(lib_id).bind(&parent).bind(&filename).bind(ext).bind(size).bind(mtime)
         .execute(&self.db).await?;
+
+        let file_id = res.last_insert_rowid() as i32;
+
+        // 2. 触发标签化 (Milestone 3 核心)
+        let tag_mgr = TagManager::new(self.db.clone());
+        let path_tagger = PathTagger::new(tag_mgr);
+        path_tagger.process_path(file_id, &parent).await?;
+
         Ok(())
     }
 
