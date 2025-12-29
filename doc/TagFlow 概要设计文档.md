@@ -25,45 +25,35 @@ TagFlow 旨在解决个人数据膨胀背景下，传统层级目录（文件夹
 graph TB
     subgraph "用户交互层 (Frontend)"
         WebUI[Vue 3 / Vite / Tailwind]
+        LoginView[登录与鉴权模块]
+        StorageView[存储池管理界面]
     end
 
     subgraph "接入层 (API Layer)"
         Axum[Axum REST API]
-        Auth[认证/鉴权]
+        AuthMW[JWT 鉴权中间件]
+        LoginHandler[登录处理器]
     end
 
     subgraph "核心域 (Core Domain)"
         Scanner[增量扫描引擎]
-        Tagger[自动化标签流水线]
-        Library[资源库管理器]
-        Search[分面搜索引擎]
+        Tagger[层级标签流水线]
+        LibManager[资源库 CRUD 与连接测试]
+        AuthService[Argon2 密码服务]
     end
 
-    subgraph "适配器层 (Adapters)"
-        OpenDAL[OpenDAL 统一存储适配]
-        SQLite[SeaORM / SQLite 数据库适配]
-        FFmpeg[FFmpeg 缩略图服务]
-    end
-
-    subgraph "基础设施层 (Infrastructure)"
-        LocalFS[(本地磁盘)]
-        RemoteDAV[(WebDAV 远程源)]
-        DB_File[(SQLite DB File)]
-        CacheDir[(WebP 缩略图缓存)]
+    subgraph "基础设施适配 (Adapters)"
+        OpenDAL[多源存储适配: Local/WebDAV]
+        SQLite[SQLx 持久化层]
+        FFmpeg[异步缩略图服务]
     end
 
     WebUI <--> Axum
-    Axum --> Library
-    Axum --> Search
-    Library --> Scanner
+    Axum --> AuthMW
+    AuthMW --> LoginHandler
+    AuthMW --> LibManager
+    LibManager --> Scanner
     Scanner --> OpenDAL
-    Scanner --> Tagger
-    Tagger --> SQLite
-    OpenDAL --> LocalFS
-    OpenDAL --> RemoteDAV
-    SQLite --> DB_File
-    Scanner -.-> FFmpeg
-    FFmpeg --> CacheDir
 ```
 
 ---
@@ -78,6 +68,7 @@ graph TB
 | **Web 框架** | **Axum** | 基于 Tokio，高性能异步架构，与 Rust 生态兼容度高。 |
 | **前端框架** | **Vue 3 + Pinia** | 轻量级富客户端逻辑，支持复杂的文件多选与状态管理。 |
 | **多媒体处理** | **FFmpeg** | 工业级视频封面与元数据提取标准。 |
+| **安全认证** | **JWT + Argon2** | 无状态令牌适合单体部署；Argon2 提供顶级密码哈希抗性。 |
 
 ---
 
@@ -85,10 +76,16 @@ graph TB
 
 ```mermaid
 erDiagram
+    USER ||--o{ LIBRARY : "manages"
     LIBRARY ||--o{ FILE : "indexes"
     FILE ||--o{ FILE_TAG : "has"
     TAG ||--o{ FILE_TAG : "assigns"
 
+    USER {
+        int id PK
+        string username "唯一账号"
+        string password_hash "Argon2 哈希"
+    }
     LIBRARY {
         int id PK
         string name "资源库名称"
