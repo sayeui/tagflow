@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useResourceStore } from '@/stores/useResourceStore'
-import { useAuthStore } from '@/stores/auth'
 import TagItem from '@/components/TagItem.vue'
 import FileGrid from '@/components/FileGrid.vue'
-import { FolderOpen, Settings, LogOut } from 'lucide-vue-next'
+import { FolderOpen, Settings } from 'lucide-vue-next'
 
 const store = useResourceStore()
-const authStore = useAuthStore()
 
 onMounted(() => {
   store.fetchTags()
@@ -16,10 +14,6 @@ onMounted(() => {
 
 const handleSelectAll = () => {
   store.fetchFiles()
-}
-
-const handleLogout = () => {
-  authStore.logout()
 }
 </script>
 
@@ -80,22 +74,6 @@ const handleLogout = () => {
             >
               <Settings class="w-5 h-5" />
             </router-link>
-            <router-link
-              to="/settings/security"
-              class="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-              title="安全设置"
-            >
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            </router-link>
-            <button
-              @click="handleLogout"
-              class="p-2 text-gray-600 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors"
-              title="退出登录"
-            >
-              <LogOut class="w-5 h-5" />
-            </button>
           </div>
         </div>
       </header>
