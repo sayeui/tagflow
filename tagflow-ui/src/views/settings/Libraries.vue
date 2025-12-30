@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { libraryApi } from '@/api/http'
-import { Trash2, CheckCircle, XCircle, Plus, RefreshCw } from 'lucide-vue-next'
+import { Trash2, CheckCircle, XCircle, Plus, RefreshCw, AlertCircle, ArrowLeft } from 'lucide-vue-next'
 import Toast from '@/components/Toast.vue'
+
+const router = useRouter()
 
 interface Library {
   id: number
@@ -27,6 +30,12 @@ const isCreating = ref(false)
 const toastMessage = ref('')
 const toastType = ref<'error' | 'success' | 'warning' | 'info'>('info')
 
+// 表单字段错误提示
+const formErrors = ref({
+  name: '',
+  base_path: ''
+})
+
 const showToast = (message: string, type: 'error' | 'success' | 'warning' | 'info' = 'info') => {
   toastMessage.value = message
   toastType.value = type
@@ -41,11 +50,72 @@ const fetchLibraries = async () => {
   }
 }
 
+// 清除字段错误
+const clearFieldError = (field: 'name' | 'base_path') => {
+  formErrors.value[field] = ''
+}
+
+// 验证表单
+const validateForm = (): boolean => {
+  let isValid = true
+
+  // 验证名称
+  if (!newLib.value.name.trim()) {
+    formErrors.value.name = '请输入资源库名称'
+    isValid = false
+  } else if (newLib.value.name.trim().length < 2) {
+    formErrors.value.name = '资源库名称至少需要2个字符'
+    isValid = false
+  } else {
+    formErrors.value.name = ''
+  }
+
+  // 验证路径
+  const pathValidation = validatePath(newLib.value.base_path.trim())
+  if (!pathValidation.valid) {
+    formErrors.value.base_path = pathValidation.error || '路径验证失败'
+    isValid = false
+  } else {
+    formErrors.value.base_path = ''
+  }
+
+  return isValid
+}
+
+// 路径安全验证（防止路径遍历攻击）
+const validatePath = (path: string): { valid: boolean; error?: string } => {
+  if (!path) {
+    return { valid: false, error: '请输入物理路径' }
+  }
+
+  // 检测路径遍历攻击
+  if (path.includes('..')) {
+    return { valid: false, error: '路径不能包含 ".."（路径遍历检测）' }
+  }
+
+  if (path.includes('./') || path.includes('.\\')) {
+    return { valid: false, error: '路径不能包含 "./" 或 ".\\"' }
+  }
+
+  // 检查是否为绝对路径
+  const isUnixPath = path.startsWith('/')
+  const isWindowsPath = /^[a-zA-Z]:\\/.test(path)
+
+  if (!isUnixPath && !isWindowsPath) {
+    return { valid: false, error: '必须使用绝对路径（如 /mnt/data 或 C:\\Data）' }
+  }
+
+  return { valid: true }
+}
+
 const testConnection = async () => {
-  if (!newLib.value.base_path) {
-    showToast('请先输入路径', 'warning')
+  // 先验证路径字段
+  const pathValidation = validatePath(newLib.value.base_path.trim())
+  if (!pathValidation.valid) {
+    formErrors.value.base_path = pathValidation.error || '路径验证失败'
     return
   }
+  clearFieldError('base_path')
 
   isTesting.value = true
   testResult.value = null
@@ -71,8 +141,8 @@ const testConnection = async () => {
 }
 
 const addLibrary = async () => {
-  if (!newLib.value.name || !newLib.value.base_path) {
-    showToast('请填写完整信息', 'warning')
+  // 执行表单验证
+  if (!validateForm()) {
     return
   }
 
@@ -94,6 +164,8 @@ const addLibrary = async () => {
       config_json: ''
     }
     testResult.value = null
+    // 重置错误提示
+    formErrors.value = { name: '', base_path: '' }
 
     showToast('资源库添加成功', 'success')
     fetchLibraries()
@@ -137,6 +209,10 @@ const formatDate = (dateStr: string | null) => {
   return new Date(dateStr).toLocaleString('zh-CN')
 }
 
+const goBack = () => {
+  router.push('/')
+}
+
 onMounted(fetchLibraries)
 </script>
 
@@ -151,7 +227,17 @@ onMounted(fetchLibraries)
   />
 
   <div class="p-8 max-w-4xl mx-auto">
-    <h1 class="text-2xl font-bold mb-6 text-gray-900">存储库管理</h1>
+    <!-- 页面头部 -->
+    <div class="flex items-center gap-4 mb-6">
+      <button
+        @click="goBack"
+        class="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+        title="返回主页"
+      >
+        <ArrowLeft class="w-6 h-6" />
+      </button>
+      <h1 class="text-2xl font-bold text-gray-900">存储库管理</h1>
+    </div>
 
     <!-- 添加资源库表单 -->
     <div class="bg-white p-6 rounded-lg shadow-sm border mb-8">
@@ -162,10 +248,21 @@ onMounted(fetchLibraries)
           <label class="block text-sm font-medium text-gray-700 mb-2">资源库名称</label>
           <input
             v-model="newLib.name"
+            @input="clearFieldError('name')"
             type="text"
             placeholder="例如: 我的照片"
-            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            :class="[
+              'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-blue-500 outline-none transition-colors',
+              formErrors.name
+                ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+            ]"
           />
+          <!-- 字段错误提示 -->
+          <p v-if="formErrors.name" class="mt-1.5 text-sm text-red-600 flex items-center gap-1">
+            <AlertCircle class="w-4 h-4" />
+            {{ formErrors.name }}
+          </p>
         </div>
 
         <div>
@@ -183,10 +280,21 @@ onMounted(fetchLibraries)
           <label class="block text-sm font-medium text-gray-700 mb-2">物理路径</label>
           <input
             v-model="newLib.base_path"
+            @input="clearFieldError('base_path')"
             type="text"
             placeholder="/mnt/photos 或 C:\Photos"
-            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-mono text-sm"
+            :class="[
+              'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:border-blue-500 outline-none font-mono text-sm transition-colors',
+              formErrors.base_path
+                ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+            ]"
           />
+          <!-- 字段错误提示 -->
+          <p v-if="formErrors.base_path" class="mt-1.5 text-sm text-red-600 flex items-center gap-1">
+            <AlertCircle class="w-4 h-4" />
+            {{ formErrors.base_path }}
+          </p>
         </div>
       </div>
 

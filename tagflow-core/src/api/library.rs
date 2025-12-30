@@ -12,6 +12,40 @@ use tracing::{debug, info, warn};
 
 use crate::models::dto::{CreateLibraryRequest, LibraryResponse, TestConnectionResponse};
 
+/// 验证路径安全性（防止路径遍历攻击）
+///
+/// # 规则
+/// - 路径不能包含 `..` (父目录遍历)
+/// - 路径不能包含 `./` 或 `.\` (当前目录引用)
+/// - 路径必须是绝对路径
+fn validate_path_security(path: &str) -> Result<(), &'static str> {
+    // 检测路径遍历攻击
+    if path.contains("..") {
+        warn!("路径安全检查失败: 包含 '..' - {}", path);
+        return Err("路径不能包含 '..'（路径遍历检测）");
+    }
+
+    if path.contains("./") || path.contains(".\\") {
+        warn!("路径安全检查失败: 包含 './' 或 '.\\' - {}", path);
+        return Err("路径不能包含 './' 或 '.\\'");
+    }
+
+    // 检查是否为绝对路径
+    let is_unix_path = path.starts_with('/');
+    let is_windows_path = path.len() >= 3
+        && path.as_bytes()[0].is_ascii_alphabetic()
+        && path.as_bytes()[1] == b':'
+        && (path.as_bytes()[2] == b'\\' || path.as_bytes()[2] == b'/');
+
+    if !is_unix_path && !is_windows_path {
+        warn!("路径安全检查失败: 不是绝对路径 - {}", path);
+        return Err("必须使用绝对路径（如 /mnt/data 或 C:\\Data）");
+    }
+
+    debug!("路径安全检查通过: {}", path);
+    Ok(())
+}
+
 /// 获取所有已配置的资源库
 ///
 /// # 路由
@@ -73,6 +107,12 @@ pub async fn create_library(
     // 验证 protocol
     if payload.protocol != "local" && payload.protocol != "webdav" {
         warn!("无效的协议类型: {}", payload.protocol);
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    // 路径安全验证
+    if let Err(err_msg) = validate_path_security(&payload.base_path) {
+        warn!("路径安全验证失败: {} - {}", payload.base_path, err_msg);
         return Err(StatusCode::BAD_REQUEST);
     }
 
@@ -155,6 +195,15 @@ pub async fn test_library_connection(
     debug!("测试连接: protocol={}, path={}", payload.protocol, payload.base_path);
 
     if payload.protocol == "local" {
+        // 路径安全验证
+        if let Err(err_msg) = validate_path_security(&payload.base_path) {
+            warn!("连接测试路径安全验证失败: {} - {}", payload.base_path, err_msg);
+            return Json(TestConnectionResponse {
+                reachable: false,
+                message: err_msg.to_string(),
+            });
+        }
+
         // 检查本地目录是否存在且可读
         let path = std::path::Path::new(&payload.base_path);
 
