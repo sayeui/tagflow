@@ -67,3 +67,30 @@ export const fileApi = {
     limit?: number
   }) => instance.get('/v1/files', { params }),
 }
+
+export const libraryApi = {
+  // 获取所有资源库
+  list: () => instance.get('/v1/libraries'),
+
+  // 创建资源库
+  create: (data: {
+    name: string
+    protocol: string
+    base_path: string
+    config_json?: string
+  }) => instance.post('/v1/libraries', data),
+
+  // 删除资源库
+  delete: (id: number) => instance.delete(`/v1/libraries/${id}`),
+
+  // 测试连接
+  testConnection: (data: {
+    name: string
+    protocol: string
+    base_path: string
+    config_json?: string
+  }) => instance.post('/v1/libraries/test', data),
+
+  // 触发扫描
+  triggerScan: (id: number) => instance.post(`/v1/libraries/${id}/scan`),
+}

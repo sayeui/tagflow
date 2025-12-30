@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useResourceStore } from '@/stores/useResourceStore'
+import { useAuthStore } from '@/stores/auth'
 import TagItem from '@/components/TagItem.vue'
 import FileGrid from '@/components/FileGrid.vue'
-import { FolderOpen } from 'lucide-vue-next'
+import { FolderOpen, Settings, LogOut } from 'lucide-vue-next'
 
 const store = useResourceStore()
+const authStore = useAuthStore()
 
 onMounted(() => {
   store.fetchTags()
@@ -14,6 +16,10 @@ onMounted(() => {
 
 const handleSelectAll = () => {
   store.fetchFiles()
+}
+
+const handleLogout = () => {
+  authStore.logout()
 }
 </script>
 
@@ -56,12 +62,41 @@ const handleSelectAll = () => {
             {{ store.selectedTagName || '全部文件' }}
           </span>
         </div>
-        <div v-if="store.loading" class="flex items-center text-blue-500">
-          <svg class="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" />
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-          <span class="ml-2 text-sm">加载中...</span>
+        <div class="flex items-center gap-4">
+          <div v-if="store.loading" class="flex items-center text-blue-500">
+            <svg class="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" />
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+            <span class="ml-2 text-sm">加载中...</span>
+          </div>
+
+          <!-- 设置按钮 -->
+          <div class="flex items-center gap-2 border-l border-gray-200 pl-4">
+            <router-link
+              to="/settings/libraries"
+              class="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              title="存储库管理"
+            >
+              <Settings class="w-5 h-5" />
+            </router-link>
+            <router-link
+              to="/settings/security"
+              class="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              title="安全设置"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </router-link>
+            <button
+              @click="handleLogout"
+              class="p-2 text-gray-600 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors"
+              title="退出登录"
+            >
+              <LogOut class="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </header>
 

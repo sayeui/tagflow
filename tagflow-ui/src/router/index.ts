@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 const Login = () => import('@/views/Login.vue')
 const Home = () => import('@/views/Home.vue')
 const SecuritySettings = () => import('@/views/settings/Security.vue')
+const LibrariesSettings = () => import('@/views/settings/Libraries.vue')
 
 const routes: RouteRecordRaw[] = [
   {
@@ -21,6 +22,11 @@ const routes: RouteRecordRaw[] = [
     path: '/settings/security',
     name: 'SecuritySettings',
     component: SecuritySettings,
+  },
+  {
+    path: '/settings/libraries',
+    name: 'LibrariesSettings',
+    component: LibrariesSettings,
   },
 ]
 
