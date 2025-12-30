@@ -17,6 +17,8 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 opendal = { version = "0.50", features = ["services-fs"] }
 futures-util = "0.3"
+# IO 工具 (用于流式传输文件)
+tokio-util = { version = "0.7", features = ["io"] }
 # 密码哈希
 argon2 = "0.5"
 # JWT 令牌

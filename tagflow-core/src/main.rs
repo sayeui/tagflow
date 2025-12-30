@@ -45,6 +45,13 @@ async fn main() -> anyhow::Result<()> {
     // 初始化管理员用户（如果不存在）
     ensure_admin_user(&pool).await?;
 
+    // 启动后台任务 Worker
+    let pool_for_worker = pool.clone();
+    tokio::spawn(async move {
+        tagflow_core::engine::worker::start_task_worker(pool_for_worker, "./cache".to_string()).await;
+    });
+    info!("后台任务 Worker 已启动");
+
     // 构建路由
     // 1. 公开路由（无需认证）
     let auth_routes = Router::new()
@@ -55,6 +62,7 @@ async fn main() -> anyhow::Result<()> {
     let protected_routes = Router::new()
         .route("/api/v1/tags/tree", get(api::tag::get_tag_tree))
         .route("/api/v1/files", get(api::file::list_files))
+        .route("/api/v1/files/:id/thumbnail", get(api::file::get_thumbnail))
         .route("/api/auth/update-password", post(api::auth::update_password))
         // Library 管理 API
         .route("/api/v1/libraries", get(api::library::list_libraries))

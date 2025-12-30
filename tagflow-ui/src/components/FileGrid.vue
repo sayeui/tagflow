@@ -6,6 +6,9 @@ import type { FileItem } from '../stores/useResourceStore'
 
 defineProps<{ files: FileItem[] }>()
 
+// API 基础 URL
+const API_BASE = '/api/v1'
+
 // 假设网格每行显示 6 个，每个高度 160px
 const GRID_COLUMNS = 6
 const ITEM_HEIGHT = 160
@@ -57,8 +60,20 @@ const formatFileSize = (bytes: number): string => {
         :key="file.id"
         class="flex flex-col items-center p-3 border border-gray-200 rounded-lg hover:shadow-md hover:border-blue-300 transition-all cursor-pointer bg-white"
       >
-        <div class="w-24 h-24 flex items-center justify-center bg-gray-50 rounded-lg mb-2">
-          <component :is="getFileIcon(file.extension)" class="w-12 h-12" :class="{
+        <!-- 缩略图容器 -->
+        <div class="w-24 h-24 flex items-center justify-center bg-gray-50 rounded-lg mb-2 overflow-hidden relative">
+          <!-- 优先显示缩略图 -->
+          <img
+            :src="`${API_BASE}/files/${file.id}/thumbnail`"
+            :alt="file.filename"
+            class="w-full h-full object-cover"
+            @error="(e) => { (e.target as HTMLImageElement).style.display = 'none' }"
+            @load="(e) => { (e.target as HTMLImageElement).style.display = 'block' }"
+            loading="lazy"
+            style="display: none"
+          />
+          <!-- 备用图标 -->
+          <component :is="getFileIcon(file.extension)" class="w-12 h-12 absolute" :class="{
             'text-green-500': getFileIcon(file.extension) === ImageIcon,
             'text-blue-500': getFileIcon(file.extension) === FileCode,
             'text-orange-500': getFileIcon(file.extension) === FileArchive,
