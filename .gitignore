@@ -1,4 +1,13 @@
 .DS_Store
+
+# Rust 构建产物
 tagflow-core/target
+
+# Node.js 依赖和构建产物
 tagflow-ui/node_modules
 tagflow-ui/dist
+
+# SQLite 数据库文件（运行时生成）
+*.db
+*.db-shm
+*.db-wal
