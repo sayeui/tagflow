@@ -1,6 +1,6 @@
 # TagFlow API 文档
 
-**版本：** v1.0
+**版本：** v1.1
 **基础 URL：** `http://localhost:8080`
 **内容类型：** `application/json`
 
@@ -8,17 +8,78 @@
 
 ## 概述
 
-TagFlow API 提供标签树查询和文件检索功能，支持层级标签的递归过滤。
+TagFlow API 提供用户认证、标签树查询和文件检索功能，支持层级标签的递归过滤。
+
+### 认证方式
+
+API 使用 JWT (JSON Web Token) 进行认证。除登录接口外，所有 API 请求需要在请求头中携带有效的访问令牌：
+
+```http
+Authorization: Bearer <your_token>
+```
+
+**令牌有效期：** 24 小时
+
+**默认管理员凭据：**
+- 用户名：`admin`
+- 密码：`admin123`
+
+> 生产环境应通过环境变量 `TAGFLOW_ADMIN_USERNAME` 和 `TAGFLOW_ADMIN_PASSWORD` 配置管理员凭据。
 
 ---
 
 ## API 端点
 
-### 1. 获取标签树
+### 1. 用户登录
+
+使用用户名和密码登录，获取访问令牌。
+
+**端点：** `POST /api/auth/login`
+
+**请求头：**
+```http
+Content-Type: application/json
+```
+
+**请求体：**
+
+| 字段 | 类型 | 必填 | 描述 |
+|------|------|------|------|
+| `username` | string | 是 | 用户名 |
+| `password` | string | 是 | 密码 |
+
+**请求示例：**
+
+```bash
+curl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}'
+```
+
+**成功响应 (200)：**
+
+```json
+{
+  "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc2NzA5MzIwMX0.ohXCPW5ueKxemlTc3zguAZz1uXTJV-KhFyidS-L60ZA"
+}
+```
+
+**失败响应 (401)：**
+
+无响应体。
+
+---
+
+### 2. 获取标签树
 
 返回所有标签的嵌套树形结构。
 
 **端点：** `GET /api/v1/tags/tree`
+
+**请求头：**
+```http
+Authorization: Bearer <your_token>
+```
 
 **请求参数：** 无
 
@@ -65,11 +126,16 @@ TagFlow API 提供标签树查询和文件检索功能，支持层级标签的�
 
 ---
 
-### 2. 获取文件列表
+### 3. 获取文件列表
 
 根据标签过滤或分页获取文件列表。
 
 **端点：** `GET /api/v1/files`
+
+**请求头：**
+```http
+Authorization: Bearer <your_token>
+```
 
 **查询参数：**
 
@@ -161,6 +227,7 @@ Work (id=2)
 |--------|------|
 | 200 | 成功 |
 | 400 | 请求参数错误 |
+| 401 | 未授权（令牌无效或缺失） |
 | 500 | 服务器内部错误 |
 
 **错误响应示例：**
@@ -178,23 +245,41 @@ Work (id=2)
 ### cURL
 
 ```bash
-# 获取标签树
-curl http://localhost:8080/api/v1/tags/tree
+# 1. 登录获取令牌
+TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}' \
+  | jq -r '.token')
 
-# 获取 Work 标签下的所有文件
-curl "http://localhost:8080/api/v1/files?tag_id=2&recursive=true"
+# 2. 使用令牌获取标签树
+curl http://localhost:8080/api/v1/tags/tree \
+  -H "Authorization: Bearer $TOKEN"
+
+# 3. 使用令牌获取 Work 标签下的所有文件
+curl "http://localhost:8080/api/v1/files?tag_id=2&recursive=true" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ### JavaScript (fetch)
 
 ```javascript
-// 获取标签树
-const tags = await fetch('http://localhost:8080/api/v1/tags/tree')
-  .then(res => res.json());
+// 登录获取令牌
+const loginResponse = await fetch('http://localhost:8080/api/auth/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ username: 'admin', password: 'admin123' })
+});
+const { token } = await loginResponse.json();
 
-// 获取文件列表
-const files = await fetch('http://localhost:8080/api/v1/files?tag_id=2&recursive=true')
-  .then(res => res.json());
+// 使用令牌获取标签树
+const tags = await fetch('http://localhost:8080/api/v1/tags/tree', {
+  headers: { 'Authorization': `Bearer ${token}` }
+}).then(res => res.json());
+
+// 使用令牌获取文件列表
+const files = await fetch('http://localhost:8080/api/v1/files?tag_id=2&recursive=true', {
+  headers: { 'Authorization': `Bearer ${token}` }
+}).then(res => res.json());
 
 console.log(files.items);
 ```
@@ -204,17 +289,34 @@ console.log(files.items);
 ```python
 import requests
 
+# 登录获取令牌
+login_resp = requests.post('http://localhost:8080/api/auth/login',
+  json={'username': 'admin', 'password': 'admin123'})
+token = login_resp.json()['token']
+
+# 设置认证头
+headers = {'Authorization': f'Bearer {token}'}
+
 # 获取标签树
-tags = requests.get('http://localhost:8080/api/v1/tags/tree').json()
+tags = requests.get('http://localhost:8080/api/v1/tags/tree',
+  headers=headers).json()
 
 # 获取文件列表
-files = requests.get('http://localhost:8080/api/v1/files', params={
-    'tag_id': 2,
-    'recursive': True
-}).json()
+files = requests.get('http://localhost:8080/api/v1/files',
+  headers=headers,
+  params={'tag_id': 2, 'recursive': True}).json()
 
 print(files['items'])
 ```
+
+---
+
+## 安全说明
+
+- **密码加密**：使用 Argon2 算法进行密码哈希存储
+- **令牌传输**：JWT 通过 HTTPS 传输（生产环境建议启用）
+- **令牌存储**：客户端应安全存储令牌（推荐使用 localStorage 或 sessionStorage）
+- **令牌过期**：令牌有效期为 24 小时，过期后需重新登录
 
 ---
 
@@ -223,6 +325,7 @@ print(files['items'])
 - **标签树查询**：一次性加载所有标签到内存，在应用层构建树结构
 - **文件递归查询**：使用 SQL 递归 CTE，在数据库层完成过滤，性能高效
 - **分页支持**：使用 `LIMIT` 和 `OFFSET` 减少数据传输
+- **认证中间件**：JWT 验证在请求处理前完成，无额外数据库查询
 
 ---
 
@@ -230,4 +333,5 @@ print(files['items'])
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| v1.1 | 2025-12-30 | 新增用户认证模块，添加 JWT 认证和登录接口 |
 | v1.0 | 2025-12-29 | 初始版本，实现标签树和文件检索 API |

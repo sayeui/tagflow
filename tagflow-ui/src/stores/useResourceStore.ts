@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import axios from 'axios'
+import { tagApi, fileApi } from '@/api/http'
 
 export interface TagNode {
   id: number
@@ -29,7 +29,7 @@ export const useResourceStore = defineStore('resource', {
   actions: {
     async fetchTags() {
       try {
-        const res = await axios.get<TagNode[]>('/api/v1/tags/tree')
+        const res = await tagApi.getTree()
         this.tags = res.data
       } catch (error) {
         console.error('Failed to fetch tags:', error)
@@ -49,9 +49,7 @@ export const useResourceStore = defineStore('resource', {
       }
 
       try {
-        const res = await axios.get<{ items: FileItem[]; total: number }>('/api/v1/files', {
-          params: { tag_id: tagId, recursive: true }
-        })
+        const res = await fileApi.list({ tag_id: tagId, recursive: true })
         this.files = res.data.items
       } catch (error) {
         console.error('Failed to fetch files:', error)

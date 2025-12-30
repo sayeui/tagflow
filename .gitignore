@@ -1,3 +1,4 @@
 .DS_Store
 tagflow-core/target
 tagflow-ui/node_modules
+tagflow-ui/dist
