@@ -11,3 +11,6 @@ tagflow-ui/dist
 *.db
 *.db-shm
 *.db-wal
+
+# Claude Code 本地个人配置
+.claude/settings.local.json
