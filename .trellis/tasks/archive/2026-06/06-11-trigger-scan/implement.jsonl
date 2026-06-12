@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "改动横跨 api/engine 模块，需遵循模块组织与路由接线规范"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "trigger_scan 需按 StatusCode 映射表实现 404/409/202，后台任务错误处理遵循 worker 永不退出模式"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "涉及 files/tasks/libraries 表查询与更新，需遵循 sqlx 运行时查询与绑定规范"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "扫描生命周期需按级别记录中文日志（info 业务节点 / warn 预期失败 / error 需关注错误）"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "禁止 unwrap、内联单元测试惯例、媒体白名单需有测试"}

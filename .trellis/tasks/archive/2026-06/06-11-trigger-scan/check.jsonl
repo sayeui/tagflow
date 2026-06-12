@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "校验 404/409/202 状态码映射与后台任务错误处理是否符合规范"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "按 review checklist 检查：路由分组、绑定参数、无 unwrap、测试覆盖、改动范围克制"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "校验日志级别与不记录敏感信息"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "本任务打通 API→engine→worker→前端浏览 多层数据流，需做跨层一致性检查（status 语义、202/409 与前端 toast）"}
