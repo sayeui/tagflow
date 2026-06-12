@@ -3,8 +3,8 @@
 //! 这是 TagFlow 的核心库，包含业务逻辑和数据模型。
 
 // 模块声明
-pub mod models;
-pub mod infra;
-pub mod engine;
-pub mod core;
 pub mod api;
+pub mod core;
+pub mod engine;
+pub mod infra;
+pub mod models;

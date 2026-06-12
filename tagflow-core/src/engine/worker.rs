@@ -2,20 +2,20 @@
 //!
 //! 异步处理缩略图生成等耗时任务
 
-use sqlx::{SqlitePool, Row};
+use sqlx::{Row, SqlitePool};
 use std::time::Duration;
 use tokio::time::sleep;
-use tracing::{debug, info, warn, error};
+use tracing::{debug, error, info, warn};
 
 use crate::infra::thumbnail::ThumbnailGenerator;
 
 /// 任务状态枚举
 #[repr(i32)]
 pub enum TaskStatus {
-    Pending = 0,     // 待处理
-    Running = 1,     // 进行中
-    Completed = 2,   // 已完成
-    Failed = 3,      // 失败
+    Pending = 0,   // 待处理
+    Running = 1,   // 进行中
+    Completed = 2, // 已完成
+    Failed = 3,    // 失败
 }
 
 /// 启动后台任务 Worker
@@ -37,7 +37,7 @@ pub async fn start_task_worker(pool: SqlitePool, cache_dir: String) {
             "SELECT id, file_id, task_type FROM tasks
              WHERE status = 0
              ORDER BY priority DESC, id ASC
-             LIMIT 1"
+             LIMIT 1",
         )
         .fetch_optional(&pool)
         .await;
@@ -70,11 +70,14 @@ pub async fn start_task_worker(pool: SqlitePool, cache_dir: String) {
                     }
                 };
 
-                debug!("获取到任务: id={}, file_id={}, type={}", id, file_id, task_type);
+                debug!(
+                    "获取到任务: id={}, file_id={}, type={}",
+                    id, file_id, task_type
+                );
 
                 // 2. 更新状态为进行中 (1)
                 if let Err(e) = sqlx::query(
-                    "UPDATE tasks SET status = 1, started_at = CURRENT_TIMESTAMP WHERE id = ?"
+                    "UPDATE tasks SET status = 1, started_at = CURRENT_TIMESTAMP WHERE id = ?",
                 )
                 .bind(id)
                 .execute(&pool)
@@ -159,7 +162,7 @@ pub async fn create_thumbnail_task(
 ) -> Result<i64, sqlx::Error> {
     let result = sqlx::query(
         "INSERT INTO tasks (file_id, task_type, status, priority)
-         VALUES (?, 'thumb', 0, ?)"
+         VALUES (?, 'thumb', 0, ?)",
     )
     .bind(file_id)
     .bind(priority.unwrap_or(0))
@@ -185,7 +188,7 @@ pub async fn has_pending_thumbnail_task(
 ) -> Result<bool, sqlx::Error> {
     let count = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM tasks
-         WHERE file_id = ? AND task_type = 'thumb' AND status IN (0, 1)"
+         WHERE file_id = ? AND task_type = 'thumb' AND status IN (0, 1)",
     )
     .bind(file_id)
     .fetch_one(pool)

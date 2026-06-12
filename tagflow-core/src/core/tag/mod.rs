@@ -15,7 +15,9 @@ impl TagManager {
         let mut last_parent_id: Option<i32> = None;
 
         for part in parts {
-            if part.is_empty() { continue; }
+            if part.is_empty() {
+                continue;
+            }
 
             // 尝试查找或插入当前层级的标签
             let row: Option<(i32,)> = sqlx::query_as(
@@ -31,7 +33,7 @@ impl TagManager {
                 existing_id
             } else {
                 let res = sqlx::query(
-                    "INSERT INTO tags (name, category, parent_id) VALUES (?, 'path', ?)"
+                    "INSERT INTO tags (name, category, parent_id) VALUES (?, 'path', ?)",
                 )
                 .bind(&part)
                 .bind(last_parent_id)
@@ -47,15 +49,18 @@ impl TagManager {
     }
 
     /// 建立文件与标签的关联
-    pub async fn link_file_to_tag(&self, file_id: i32, tag_id: i32, source: &str) -> anyhow::Result<()> {
-        sqlx::query(
-            "INSERT OR IGNORE INTO file_tags (file_id, tag_id, source) VALUES (?, ?, ?)"
-        )
-        .bind(file_id)
-        .bind(tag_id)
-        .bind(source)
-        .execute(&self.db)
-        .await?;
+    pub async fn link_file_to_tag(
+        &self,
+        file_id: i32,
+        tag_id: i32,
+        source: &str,
+    ) -> anyhow::Result<()> {
+        sqlx::query("INSERT OR IGNORE INTO file_tags (file_id, tag_id, source) VALUES (?, ?, ?)")
+            .bind(file_id)
+            .bind(tag_id)
+            .bind(source)
+            .execute(&self.db)
+            .await?;
         Ok(())
     }
 }

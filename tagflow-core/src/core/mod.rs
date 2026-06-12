@@ -1,2 +1,2 @@
-pub mod tag;
 pub mod auth;
+pub mod tag;

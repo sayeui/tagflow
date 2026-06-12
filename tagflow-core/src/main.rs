@@ -1,17 +1,18 @@
-use tracing::{info, warn, error, debug};
-use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 use axum::{
+    Router,
     extract::Request,
-    routing::{get, post, delete},
-    Router, middleware,
+    middleware,
     middleware::Next,
     response::Response,
+    routing::{delete, get, post},
 };
-use std::net::SocketAddr;
 use sqlx::SqlitePool;
+use std::net::SocketAddr;
+use tracing::{debug, error, info, warn};
+use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 // 从库 crate 中导入模块
-use tagflow_core::{infra, core, api};
+use tagflow_core::{api, core, infra};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -25,11 +26,11 @@ async fn main() -> anyhow::Result<()> {
         .with(env_filter)
         .with(
             fmt::layer()
-                .with_target(true)  // 显示模块路径
-                .with_line_number(true)  // 显示行号
-                .with_thread_ids(false)  // 不显示线程ID（减少噪音）
+                .with_target(true) // 显示模块路径
+                .with_line_number(true) // 显示行号
+                .with_thread_ids(false) // 不显示线程ID（减少噪音）
                 .with_thread_names(false)
-                .with_file(false)  // 不显示文件路径
+                .with_file(false), // 不显示文件路径
         )
         .init();
 
@@ -48,7 +49,8 @@ async fn main() -> anyhow::Result<()> {
     // 启动后台任务 Worker
     let pool_for_worker = pool.clone();
     tokio::spawn(async move {
-        tagflow_core::engine::worker::start_task_worker(pool_for_worker, "./cache".to_string()).await;
+        tagflow_core::engine::worker::start_task_worker(pool_for_worker, "./cache".to_string())
+            .await;
     });
     info!("后台任务 Worker 已启动");
 
@@ -63,13 +65,25 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/v1/tags/tree", get(api::tag::get_tag_tree))
         .route("/api/v1/files", get(api::file::list_files))
         .route("/api/v1/files/:id/thumbnail", get(api::file::get_thumbnail))
-        .route("/api/auth/update-password", post(api::auth::update_password))
+        .route(
+            "/api/auth/update-password",
+            post(api::auth::update_password),
+        )
         // Library 管理 API
         .route("/api/v1/libraries", get(api::library::list_libraries))
         .route("/api/v1/libraries", post(api::library::create_library))
-        .route("/api/v1/libraries/test", post(api::library::test_library_connection))
-        .route("/api/v1/libraries/:id", delete(api::library::delete_library))
-        .route("/api/v1/libraries/:id/scan", post(api::library::trigger_scan))
+        .route(
+            "/api/v1/libraries/test",
+            post(api::library::test_library_connection),
+        )
+        .route(
+            "/api/v1/libraries/:id",
+            delete(api::library::delete_library),
+        )
+        .route(
+            "/api/v1/libraries/:id/scan",
+            post(api::library::trigger_scan),
+        )
         .layer(middleware::from_fn(api::auth::auth_middleware))
         .layer(middleware::from_fn(request_logging_middleware));
 
@@ -79,8 +93,15 @@ async fn main() -> anyhow::Result<()> {
         .merge(protected_routes)
         .with_state(pool);
 
-    // 启动服务器
-    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
+    // 启动服务器（监听端口可通过 TAGFLOW_PORT 环境变量覆盖，默认 8080）
+    let port: u16 = match std::env::var("TAGFLOW_PORT") {
+        Ok(value) => value.parse().unwrap_or_else(|_| {
+            warn!("无效的 TAGFLOW_PORT 值: {}，回退到默认端口 8080", value);
+            8080
+        }),
+        Err(_) => 8080,
+    };
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
     info!("API 服务器运行在 http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
@@ -101,22 +122,20 @@ async fn ensure_admin_user(pool: &SqlitePool) -> anyhow::Result<()> {
 
     if count == 0 {
         // 从环境变量读取管理员凭据，或使用默认值
-        let admin_username = std::env::var("TAGFLOW_ADMIN_USERNAME")
-            .unwrap_or_else(|_| "admin".to_string());
-        let admin_password = std::env::var("TAGFLOW_ADMIN_PASSWORD")
-            .unwrap_or_else(|_| "PhVENfYaWv".to_string());
+        let admin_username =
+            std::env::var("TAGFLOW_ADMIN_USERNAME").unwrap_or_else(|_| "admin".to_string());
+        let admin_password =
+            std::env::var("TAGFLOW_ADMIN_PASSWORD").unwrap_or_else(|_| "PhVENfYaWv".to_string());
 
         // 哈希密码
         let password_hash = core::auth::hash_password(&admin_password)?;
 
         // 创建管理员用户
-        sqlx::query(
-            "INSERT INTO users (username, password_hash) VALUES (?, ?)"
-        )
-        .bind(&admin_username)
-        .bind(&password_hash)
-        .execute(pool)
-        .await?;
+        sqlx::query("INSERT INTO users (username, password_hash) VALUES (?, ?)")
+            .bind(&admin_username)
+            .bind(&password_hash)
+            .execute(pool)
+            .await?;
 
         info!("==============================================");
         info!("检测到新系统：已创建默认管理员");
@@ -132,19 +151,13 @@ async fn ensure_admin_user(pool: &SqlitePool) -> anyhow::Result<()> {
 /// 请求日志中间件
 ///
 /// 记录所有传入的 HTTP 请求，包括方法、路径和状态码
-async fn request_logging_middleware(
-    req: Request,
-    next: Next,
-) -> Response {
+async fn request_logging_middleware(req: Request, next: Next) -> Response {
     let method = req.method().clone();
     let uri = req.uri().clone();
     let path = uri.path();
 
     // 检查是否有 Authorization 头
-    let has_auth = req
-        .headers()
-        .get("authorization")
-        .is_some();
+    let has_auth = req.headers().get("authorization").is_some();
 
     // 记录请求开始
     if has_auth {

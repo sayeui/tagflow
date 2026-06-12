@@ -1,7 +1,7 @@
-use axum::{extract::State, Json};
-use sqlx::SqlitePool;
-use crate::models::dto::TagNode;
 use crate::models::db::Tag;
+use crate::models::dto::TagNode;
+use axum::{Json, extract::State};
+use sqlx::SqlitePool;
 
 pub async fn get_tag_tree(State(pool): State<SqlitePool>) -> Json<Vec<TagNode>> {
     // 1. 获取所有标签

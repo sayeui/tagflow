@@ -2,15 +2,21 @@
 //!
 //! 提供资源库的 CRUD 操作、连接测试和扫描触发功能。
 
+use std::collections::HashSet;
+use std::sync::{LazyLock, Mutex};
+
 use axum::{
+    Json,
     extract::{Path as AxumPath, State},
     http::StatusCode,
-    Json,
 };
 use sqlx::SqlitePool;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::models::dto::{CreateLibraryRequest, LibraryResponse, TestConnectionResponse};
+
+/// 正在扫描的资源库 ID 集合（进程内并发防护）
+static SCANNING: LazyLock<Mutex<HashSet<i32>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
 
 /// 验证路径安全性（防止路径遍历攻击）
 ///
@@ -68,12 +74,11 @@ pub async fn list_libraries(
 ) -> Result<Json<Vec<LibraryResponse>>, StatusCode> {
     debug!("获取资源库列表");
 
-    let libraries = sqlx::query_as::<_, crate::models::db::Library>(
-        "SELECT * FROM libraries ORDER BY id"
-    )
-    .fetch_all(&pool)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let libraries =
+        sqlx::query_as::<_, crate::models::db::Library>("SELECT * FROM libraries ORDER BY id")
+            .fetch_all(&pool)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let response: Vec<LibraryResponse> = libraries.into_iter().map(|lib| lib.into()).collect();
 
@@ -102,7 +107,10 @@ pub async fn create_library(
     State(pool): State<SqlitePool>,
     Json(payload): Json<CreateLibraryRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    info!("创建资源库: name={}, protocol={}, path={}", payload.name, payload.protocol, payload.base_path);
+    info!(
+        "创建资源库: name={}, protocol={}, path={}",
+        payload.name, payload.protocol, payload.base_path
+    );
 
     // 验证 protocol
     if payload.protocol != "local" && payload.protocol != "webdav" {
@@ -118,7 +126,7 @@ pub async fn create_library(
 
     sqlx::query(
         "INSERT INTO libraries (name, protocol, base_path, config_json)
-         VALUES (?, ?, ?, ?)"
+         VALUES (?, ?, ?, ?)",
     )
     .bind(&payload.name)
     .bind(&payload.protocol)
@@ -192,12 +200,18 @@ pub async fn delete_library(
 pub async fn test_library_connection(
     Json(payload): Json<CreateLibraryRequest>,
 ) -> Json<TestConnectionResponse> {
-    debug!("测试连接: protocol={}, path={}", payload.protocol, payload.base_path);
+    debug!(
+        "测试连接: protocol={}, path={}",
+        payload.protocol, payload.base_path
+    );
 
     if payload.protocol == "local" {
         // 路径安全验证
         if let Err(err_msg) = validate_path_security(&payload.base_path) {
-            warn!("连接测试路径安全验证失败: {} - {}", payload.base_path, err_msg);
+            warn!(
+                "连接测试路径安全验证失败: {} - {}",
+                payload.base_path, err_msg
+            );
             return Json(TestConnectionResponse {
                 reachable: false,
                 message: err_msg.to_string(),
@@ -256,14 +270,15 @@ pub async fn test_library_connection(
 ///
 /// # 失败响应
 /// - 404: 资源库不存在
-/// - 501: 扫描功能未实现
+/// - 409: 该资源库已有扫描进行中
+/// - 500: 服务器错误
 pub async fn trigger_scan(
     State(pool): State<SqlitePool>,
     AxumPath(id): AxumPath<i32>,
 ) -> StatusCode {
     // 获取资源库配置
-    let _library = match sqlx::query_as::<_, crate::models::db::Library>(
-        "SELECT * FROM libraries WHERE id = ?"
+    let library = match sqlx::query_as::<_, crate::models::db::Library>(
+        "SELECT * FROM libraries WHERE id = ?",
     )
     .bind(id)
     .fetch_optional(&pool)
@@ -274,7 +289,42 @@ pub async fn trigger_scan(
         Err(_) => return StatusCode::INTERNAL_SERVER_ERROR,
     };
 
-    // TODO: 实现扫描功能
-    // 当前扫描功能尚未完全实现，返回 NOT_IMPLEMENTED
-    StatusCode::NOT_IMPLEMENTED
+    // 并发防护：同库扫描进行中则拒绝（临界区仅做插入，不跨 await）
+    {
+        let mut scanning = SCANNING.lock().unwrap_or_else(|e| e.into_inner());
+        if !scanning.insert(id) {
+            warn!("资源库正在扫描中，拒绝重复触发: id={}", id);
+            return StatusCode::CONFLICT;
+        }
+    }
+
+    info!("扫描任务已接受: id={}, name={}", id, library.name);
+
+    tokio::spawn(async move {
+        let scanner = crate::engine::scanner::Scanner::new(pool.clone());
+        match scanner.scan_library(&library).await {
+            Ok(_) => {
+                match sqlx::query(
+                    "UPDATE libraries SET last_scanned_at = CURRENT_TIMESTAMP WHERE id = ?",
+                )
+                .bind(id)
+                .execute(&pool)
+                .await
+                {
+                    Ok(_) => info!("资源库扫描成功: id={}, name={}", id, library.name),
+                    Err(e) => error!("更新扫描时间失败: id={}, {}", id, e),
+                }
+            }
+            Err(e) => {
+                error!("资源库扫描失败: id={}, name={}, {}", id, library.name, e);
+            }
+        }
+        // 无论成败，释放扫描锁
+        SCANNING
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&id);
+    });
+
+    StatusCode::ACCEPTED
 }

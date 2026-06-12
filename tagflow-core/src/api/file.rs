@@ -1,15 +1,15 @@
+use crate::models::db::FileEntry;
+use crate::models::dto::{FileItem, FileQuery, FileResponse};
 use axum::{
+    Json,
     body::Body,
     extract::{Path, Query, State},
-    http::{header, StatusCode},
+    http::{StatusCode, header},
     response::Response,
-    Json,
 };
 use sqlx::SqlitePool;
 use tokio::fs::File;
 use tokio_util::io::ReaderStream;
-use crate::models::dto::{FileQuery, FileResponse, FileItem};
-use crate::models::db::FileEntry;
 
 pub async fn list_files(
     State(pool): State<SqlitePool>,
@@ -30,25 +30,32 @@ pub async fn list_files(
                 )
                 SELECT DISTINCT f.* FROM files f
                 JOIN file_tags ft ON f.id = ft.file_id
-                WHERE ft.tag_id IN (SELECT id FROM sub_tags)
+                WHERE ft.tag_id IN (SELECT id FROM sub_tags) AND f.status = 1
                 ORDER BY f.mtime DESC LIMIT ? OFFSET ?
                 "#,
             )
-            .bind(tag_id).bind(limit).bind(offset)
-            .fetch_all(&pool).await
+            .bind(tag_id)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&pool)
+            .await
         } else {
             // 仅查找直接关联该标签的文件
             sqlx::query_as::<_, FileEntry>(
-                "SELECT f.* FROM files f JOIN file_tags ft ON f.id = ft.file_id WHERE ft.tag_id = ? ORDER BY f.mtime DESC LIMIT ? OFFSET ?"
+                "SELECT f.* FROM files f JOIN file_tags ft ON f.id = ft.file_id WHERE ft.tag_id = ? AND f.status = 1 ORDER BY f.mtime DESC LIMIT ? OFFSET ?"
             )
             .bind(tag_id).bind(limit).bind(offset)
             .fetch_all(&pool).await
         }
     } else {
         // 无过滤条件，返回所有
-        sqlx::query_as::<_, FileEntry>("SELECT * FROM files ORDER BY mtime DESC LIMIT ? OFFSET ?")
-            .bind(limit).bind(offset)
-            .fetch_all(&pool).await
+        sqlx::query_as::<_, FileEntry>(
+            "SELECT * FROM files WHERE status = 1 ORDER BY mtime DESC LIMIT ? OFFSET ?",
+        )
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&pool)
+        .await
     };
 
     let items = items.unwrap_or_default();
@@ -71,9 +78,7 @@ pub async fn list_files(
 ///
 /// # 失败响应
 /// - 404: 缩略图不存在
-pub async fn get_thumbnail(
-    Path(id): Path<i32>,
-) -> Result<Response, StatusCode> {
+pub async fn get_thumbnail(Path(id): Path<i32>) -> Result<Response, StatusCode> {
     // 缩略图缓存目录
     let cache_dir = "./cache";
     let thumbnail_path = format!("{}/{}.webp", cache_dir, id);
@@ -98,4 +103,3 @@ pub async fn get_thumbnail(
         }
     }
 }
-

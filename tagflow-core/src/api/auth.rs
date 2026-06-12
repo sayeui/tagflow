@@ -3,17 +3,17 @@
 //! 提供登录接口和鉴权中间件。
 
 use axum::{
+    Extension,
     body::Body,
     extract::State,
-    http::{header, Request, StatusCode},
+    http::{Request, StatusCode, header},
     middleware::Next,
     response::{Json, Response},
-    Extension,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
-use crate::core::auth::{verify_password, create_jwt, decode_jwt, hash_password, Claims};
+use crate::core::auth::{Claims, create_jwt, decode_jwt, hash_password, verify_password};
 
 /// 登录请求
 #[derive(Debug, Deserialize)]
@@ -66,12 +66,11 @@ pub async fn login(
         password_hash: String,
     }
 
-    let result = sqlx::query_as::<_, UserRecord>(
-        "SELECT password_hash FROM users WHERE username = ?"
-    )
-    .bind(&payload.username)
-    .fetch_optional(&pool)
-    .await;
+    let result =
+        sqlx::query_as::<_, UserRecord>("SELECT password_hash FROM users WHERE username = ?")
+            .bind(&payload.username)
+            .fetch_optional(&pool)
+            .await;
 
     let user = match result {
         Ok(Some(u)) => u,
@@ -105,13 +104,10 @@ pub async fn login(
 ///
 /// # 请求头
 /// 客户端需要在请求头中携带：
-/// ```
+/// ```text
 /// Authorization: Bearer <token>
 /// ```
-pub async fn auth_middleware(
-    mut req: Request<Body>,
-    next: Next,
-) -> Result<Response, StatusCode> {
+pub async fn auth_middleware(mut req: Request<Body>, next: Next) -> Result<Response, StatusCode> {
     // 获取 Authorization 请求头
     let auth_header = req
         .headers()
@@ -204,12 +200,11 @@ pub async fn update_password(
         password_hash: String,
     }
 
-    let result = sqlx::query_as::<_, UserRecord>(
-        "SELECT password_hash FROM users WHERE username = ?"
-    )
-    .bind(username)
-    .fetch_optional(&pool)
-    .await;
+    let result =
+        sqlx::query_as::<_, UserRecord>("SELECT password_hash FROM users WHERE username = ?")
+            .bind(username)
+            .fetch_optional(&pool)
+            .await;
 
     let user = match result {
         Ok(Some(u)) => u,
@@ -225,14 +220,12 @@ pub async fn update_password(
     // 4. 加密新密码并更新数据库
     match hash_password(&payload.new_password) {
         Ok(new_hash) => {
-            if sqlx::query(
-                "UPDATE users SET password_hash = ? WHERE username = ?"
-            )
-            .bind(&new_hash)
-            .bind(username)
-            .execute(&pool)
-            .await
-            .is_err()
+            if sqlx::query("UPDATE users SET password_hash = ? WHERE username = ?")
+                .bind(&new_hash)
+                .bind(username)
+                .execute(&pool)
+                .await
+                .is_err()
             {
                 return StatusCode::INTERNAL_SERVER_ERROR;
             }

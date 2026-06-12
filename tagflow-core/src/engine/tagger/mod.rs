@@ -22,7 +22,9 @@ impl PathTagger {
             // 确保层级标签存在并获取叶子 ID
             let leaf_tag_id = self.tag_manager.ensure_path_tags(parts).await?;
             // 关联文件到叶子标签
-            self.tag_manager.link_file_to_tag(file_id, leaf_tag_id, "auto").await?;
+            self.tag_manager
+                .link_file_to_tag(file_id, leaf_tag_id, "auto")
+                .await?;
         }
 
         Ok(())

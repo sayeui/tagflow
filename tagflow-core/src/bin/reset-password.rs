@@ -6,7 +6,7 @@
 //! cargo run --bin reset-password -- --username admin --new-password YOUR_NEW_PASSWORD
 //! ```
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 // 使用 tagflow_core 库中的模块
 use tagflow_core::{core::auth, infra::db};
@@ -85,14 +85,12 @@ async fn main() -> Result<()> {
     let password_hash = auth::hash_password(&new_password)?;
 
     // 更新数据库
-    let rows_affected = sqlx::query(
-        "UPDATE users SET password_hash = ? WHERE username = ?"
-    )
-    .bind(&password_hash)
-    .bind(&username)
-    .execute(&pool)
-    .await?
-    .rows_affected();
+    let rows_affected = sqlx::query("UPDATE users SET password_hash = ? WHERE username = ?")
+        .bind(&password_hash)
+        .bind(&username)
+        .execute(&pool)
+        .await?
+        .rows_affected();
 
     if rows_affected == 0 {
         return Err(anyhow!("密码更新失败"));
