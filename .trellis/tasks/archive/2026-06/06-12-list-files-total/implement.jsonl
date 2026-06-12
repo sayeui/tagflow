@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "本任务核心是把 unwrap_or_default 技术债改为规范的 Result<Json, StatusCode> + 500 映射"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "COUNT 查询需用 query_scalar 模式，WITH RECURSIVE CTE 与绑定参数规范"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "DB 错误需按规范记录中文 error 日志"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "禁止 unwrap、测试要求与 review checklist"}
