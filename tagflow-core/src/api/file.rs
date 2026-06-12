@@ -10,18 +10,19 @@ use axum::{
 use sqlx::SqlitePool;
 use tokio::fs::File;
 use tokio_util::io::ReaderStream;
+use tracing::error;
 
 pub async fn list_files(
     State(pool): State<SqlitePool>,
     Query(query): Query<FileQuery>,
-) -> Json<FileResponse> {
+) -> Result<Json<FileResponse>, StatusCode> {
     let limit = query.limit.unwrap_or(50);
     let offset = (query.page.unwrap_or(1) - 1) * limit;
 
-    let items: Result<Vec<FileEntry>, _> = if let Some(tag_id) = query.tag_id {
+    let (items, total) = if let Some(tag_id) = query.tag_id {
         if query.recursive.unwrap_or(true) {
             // 使用递归 CTE 查找所有子孙标签的文件
-            sqlx::query_as::<_, FileEntry>(
+            let items = sqlx::query_as::<_, FileEntry>(
                 r#"
                 WITH RECURSIVE sub_tags(id) AS (
                     SELECT id FROM tags WHERE id = ?
@@ -39,30 +40,84 @@ pub async fn list_files(
             .bind(offset)
             .fetch_all(&pool)
             .await
+            .map_err(|e| {
+                error!("查询文件列表失败: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+
+            let total = sqlx::query_scalar::<_, i64>(
+                r#"
+                WITH RECURSIVE sub_tags(id) AS (
+                    SELECT id FROM tags WHERE id = ?
+                    UNION ALL
+                    SELECT t.id FROM tags t JOIN sub_tags st ON t.parent_id = st.id
+                )
+                SELECT COUNT(DISTINCT f.id) FROM files f
+                JOIN file_tags ft ON f.id = ft.file_id
+                WHERE ft.tag_id IN (SELECT id FROM sub_tags) AND f.status = 1
+                "#,
+            )
+            .bind(tag_id)
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| {
+                error!("统计文件总数失败: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+
+            (items, total)
         } else {
             // 仅查找直接关联该标签的文件
-            sqlx::query_as::<_, FileEntry>(
+            let items = sqlx::query_as::<_, FileEntry>(
                 "SELECT f.* FROM files f JOIN file_tags ft ON f.id = ft.file_id WHERE ft.tag_id = ? AND f.status = 1 ORDER BY f.mtime DESC LIMIT ? OFFSET ?"
             )
             .bind(tag_id).bind(limit).bind(offset)
             .fetch_all(&pool).await
+            .map_err(|e| {
+                error!("查询文件列表失败: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+
+            let total = sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM files f JOIN file_tags ft ON f.id = ft.file_id WHERE ft.tag_id = ? AND f.status = 1"
+            )
+            .bind(tag_id)
+            .fetch_one(&pool).await
+            .map_err(|e| {
+                error!("统计文件总数失败: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+
+            (items, total)
         }
     } else {
         // 无过滤条件，返回所有
-        sqlx::query_as::<_, FileEntry>(
+        let items = sqlx::query_as::<_, FileEntry>(
             "SELECT * FROM files WHERE status = 1 ORDER BY mtime DESC LIMIT ? OFFSET ?",
         )
         .bind(limit)
         .bind(offset)
         .fetch_all(&pool)
         .await
+        .map_err(|e| {
+            error!("查询文件列表失败: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+        let total = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM files WHERE status = 1")
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| {
+                error!("统计文件总数失败: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+
+        (items, total)
     };
 
-    let items = items.unwrap_or_default();
     let items: Vec<FileItem> = items.into_iter().map(|e| e.into()).collect();
-    let total = items.len() as i64;
 
-    Json(FileResponse { items, total })
+    Ok(Json(FileResponse { items, total }))
 }
 
 /// 获取文件缩略图
