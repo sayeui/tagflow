@@ -137,3 +137,36 @@ list_files 三个查询分支各配条件一致的 COUNT 查询，total 不再�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: TAGFLOW_ADMIN_PASSWORD 生产 fail-fast
+
+**Date**: 2026-06-14
+**Task**: TAGFLOW_ADMIN_PASSWORD 生产 fail-fast
+**Branch**: `main`
+
+### Summary
+
+main.rs ensure_admin_user 的 count==0 分支重写：3 个常量（ADMIN_PASSWORD_ENV/MIN_ADMIN_PASSWORD_LEN=12/DEV_DEFAULT_ADMIN_PASSWORD）+ 纯函数 validate_admin_password_len + cfg!(debug_assertions) 区分（debug warn+默认 / release fail-fast）。长度阈值 12 字节（OWASP），与 JWT_SECRET 32 字节形成密码 vs 密钥的合理区分。非空 users 表分支不受影响（语义正确，env 在已有部署中不会被使用）。TAGFLOW_ADMIN_USERNAME 保持现状（决策 Q1-A）。trellis-implement + trellis-check sub-agent 协作，e2e 5 场景（release×3 + debug×1 + 非空库×1）全部通过。与 JWT_SECRET 形成对称安全姿态，闭合默认凭据风险；下一步是 M9 容器化。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `dc0401c` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
