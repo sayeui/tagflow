@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "backend 总览与指南索引，写 Rust 后端代码必读"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "ensure_admin_user 在 main.rs 的位置约定与启动时序（init_jwt_secret → init_db → ensure_admin_user）"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "ensure_admin_user 已返回 anyhow::Result，新增校验需在同一签名下用 ? 透传；main.rs:51 已 ? 传播"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "缺失密码 warn!、生产 fail-fast 错误信息需中文文案；现有 ensure_admin_user 用 info! 打印 banner 需保留风格"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "inline 单元测试、clippy 零警告、forbidden/required 模式（无 unwrap 滥用）"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "复用刚落地的 init_jwt_secret/validate_secret_length 模式；保持常量化（MIN_ADMIN_PASSWORD_LEN/DEV_DEFAULT_ADMIN_PASSWORD/ADMIN_PASSWORD_ENV）"}

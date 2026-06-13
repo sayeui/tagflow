@@ -57,6 +57,7 @@ npm run build                  # 构建生产版本
 ### 运行时配置
 - `TAGFLOW_PORT`：API 监听端口（默认 8080）
 - `TAGFLOW_JWT_SECRET`：JWT 签名密钥（HS256，要求 ≥ 32 字节）。debug 构建缺失时回退开发默认值并打印 warn；release 构建缺失或长度不足将启动失败。更换密钥会使所有已签发 token 失效，用户需重新登录。
+- `TAGFLOW_ADMIN_PASSWORD`：默认管理员密码（首次启动且 `users` 表为空时创建管理员用，要求 ≥ 12 字节）。debug 构建缺失时回退开发默认值 `tagflow_dev_only_admin_pw` 并打印 warn；release 构建缺失或长度不足将启动失败。已有用户的部署不触发该校验。
 - 缩略图缓存目录：`./cache`（启动时由 worker 使用）
 
 ### 日志调试

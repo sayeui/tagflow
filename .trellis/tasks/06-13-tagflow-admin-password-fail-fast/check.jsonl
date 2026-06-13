@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "backend 验收对照总览"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "审查清单：clippy、inline 测试、forbidden 模式（println!/unwrap）"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "核验 anyhow Result 透传与错误信息 context（与 ensure_admin_user 既有签名一致）"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "核验日志级别（warn 缺失、info banner）与中文文案"}

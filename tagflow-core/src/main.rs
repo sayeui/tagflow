@@ -14,6 +14,33 @@ use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 // 从库 crate 中导入模块
 use tagflow_core::{api, core, infra};
 
+/// 管理员密码环境变量名
+const ADMIN_PASSWORD_ENV: &str = "TAGFLOW_ADMIN_PASSWORD";
+
+/// 管理员密码最小字节数（OWASP 推荐下限）
+const MIN_ADMIN_PASSWORD_LEN: usize = 12;
+
+/// 开发默认管理员密码（仅在 debug 构建且未设置环境变量时使用）
+///
+/// 字面量长度 ≥ [`MIN_ADMIN_PASSWORD_LEN`]，明确标识非生产用途；
+/// 生产环境必须通过 `TAGFLOW_ADMIN_PASSWORD` 覆盖。
+const DEV_DEFAULT_ADMIN_PASSWORD: &str = "tagflow_dev_only_admin_pw";
+
+/// 校验管理员密码字节数是否满足安全要求
+///
+/// OWASP 建议用户密码最小长度为 12 字符；本函数按 UTF-8 字节数校验，
+/// 用于在首次创建管理员时拒绝弱密码。
+fn validate_admin_password_len(len: usize) -> anyhow::Result<()> {
+    if len < MIN_ADMIN_PASSWORD_LEN {
+        return Err(anyhow::anyhow!(
+            "TAGFLOW_ADMIN_PASSWORD 长度 {} < {} 字节，不满足安全要求",
+            len,
+            MIN_ADMIN_PASSWORD_LEN
+        ));
+    }
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // 从环境变量读取日志级别，默认为 INFO
@@ -116,8 +143,13 @@ async fn main() -> anyhow::Result<()> {
 
 /// 确保系统中存在至少一个管理员用户
 ///
-/// 如果数据库中没有用户，则创建默认管理员。
-/// 生产环境中应从环境变量读取管理员凭据。
+/// 仅在 `users` 表为空（首次启动）时触发：
+/// - 用户名：`TAGFLOW_ADMIN_USERNAME` 缺省回退 `admin`
+/// - 密码：`TAGFLOW_ADMIN_PASSWORD` 缺省时，debug 构建回退到开发默认值并 `warn!`，
+///   release 构建直接返回 `Err` 由 main 透传使进程退出；非空值需通过
+///   [`validate_admin_password_len`] 长度校验。
+///
+/// 非空 users 表（已有管理员）：完全跳过本逻辑，环境变量不会被读取。
 async fn ensure_admin_user(pool: &SqlitePool) -> anyhow::Result<()> {
     // 检查用户数量
     let count: i64 = sqlx::query_scalar("SELECT count(*) FROM users")
@@ -125,11 +157,26 @@ async fn ensure_admin_user(pool: &SqlitePool) -> anyhow::Result<()> {
         .await?;
 
     if count == 0 {
-        // 从环境变量读取管理员凭据，或使用默认值
+        // 用户名保持现状：缺省回退 admin（决策 Q1-A）
         let admin_username =
             std::env::var("TAGFLOW_ADMIN_USERNAME").unwrap_or_else(|_| "admin".to_string());
-        let admin_password =
-            std::env::var("TAGFLOW_ADMIN_PASSWORD").unwrap_or_else(|_| "PhVENfYaWv".to_string());
+        let admin_password = match std::env::var(ADMIN_PASSWORD_ENV) {
+            Ok(s) if !s.is_empty() => {
+                validate_admin_password_len(s.len())?;
+                s
+            }
+            _ => {
+                if cfg!(debug_assertions) {
+                    warn!("TAGFLOW_ADMIN_PASSWORD 未设置，使用开发默认密码（仅 debug 构建可用）");
+                    DEV_DEFAULT_ADMIN_PASSWORD.to_string()
+                } else {
+                    return Err(anyhow::anyhow!(
+                        "生产模式首次启动必须设置 TAGFLOW_ADMIN_PASSWORD 环境变量（≥ {} 字节）",
+                        MIN_ADMIN_PASSWORD_LEN
+                    ));
+                }
+            }
+        };
 
         // 哈希密码
         let password_hash = core::auth::hash_password(&admin_password)?;
@@ -189,4 +236,21 @@ async fn request_logging_middleware(req: Request, next: Next) -> Response {
     }
 
     response
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_admin_password_len_rejects_short() {
+        // 0 字节必须被拒
+        assert!(validate_admin_password_len(0).is_err());
+        // 11 字节（< 12）必须被拒
+        assert!(validate_admin_password_len(11).is_err());
+        // 恰好 12 字节通过（OWASP 下限）
+        assert!(validate_admin_password_len(12).is_ok());
+        // 超过阈值通过
+        assert!(validate_admin_password_len(64).is_ok());
+    }
 }
