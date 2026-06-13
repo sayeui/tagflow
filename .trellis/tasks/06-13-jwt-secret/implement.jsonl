@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "backend 总览与指南索引，写 Rust 后端代码必读"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "确认 init_jwt_secret 归属 core/auth.rs（核心域纯逻辑），与现有 hash_password 等同模块"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "init_jwt_secret 返回 anyhow::Result，错误信息需带 context；本任务主路径属 core 层 anyhow 策略"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "缺失密钥 warn!、生产 fail-fast error! 均需中文文案，遵循 tracing 规范（禁 println!）"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "inline 单元测试、clippy 零警告、forbidden/required 模式约束"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "与现有 TAGFLOW_PORT / TAGFLOW_ADMIN_PASSWORD 读取模式保持一致，避免造新轮子"}

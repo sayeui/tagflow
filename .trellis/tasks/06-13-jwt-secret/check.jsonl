@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "backend 验收对照总览"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "审查清单：clippy、inline 测试、forbidden 模式（如 println!、unwrap 滥用）"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "核验 anyhow Result 路径与错误信息是否符合 core 层规范"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "核验日志级别与中文文案（warn/error 用法）"}

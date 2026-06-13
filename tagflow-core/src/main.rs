@@ -37,6 +37,10 @@ async fn main() -> anyhow::Result<()> {
     info!("🚀 TagFlow Core 正在启动...");
     debug!("调试模式已启用");
 
+    // 初始化 JWT 密钥（debug 缺失回退开发默认值，release 缺失则 fail-fast 退出）
+    core::auth::init_jwt_secret()?;
+    info!("JWT 密钥已初始化");
+
     // 初始化数据库 (本地文件 tagflow.db)
     let db_url = "sqlite:tagflow.db?mode=rwc";
     let pool = infra::db::init_db(db_url).await?;
