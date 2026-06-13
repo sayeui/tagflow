@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "CLAUDE.md 模块组织描述需与后端实际目录结构一致"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "CLAUDE.md 前端结构描述需与前端目录规范一致"}
