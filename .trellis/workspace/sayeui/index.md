@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 3
+- **Total Sessions**: 4
 - **Last Active**: 2026-06-13
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~106 | Active |
+| `journal-1.md` | ~139 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 4 | 2026-06-13 | JWT_SECRET 环境变量化与启动校验 | `252514e` | `main` |
 | 3 | 2026-06-13 | 同步项目说明文件至 Milestone 8 实际进展 | `0e08830` | `main` |
 | 2 | 2026-06-12 | 修复 list_files 分页 total 计数与错误处理 | `346589f` | `main` |
 | 1 | 2026-06-12 | 打通扫描流水线：trigger_scan 接入扫描引擎与缩略图任务 | `0c17031` | `main` |

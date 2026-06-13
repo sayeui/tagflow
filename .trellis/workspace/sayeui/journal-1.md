@@ -104,3 +104,36 @@ list_files 三个查询分支各配条件一致的 COUNT 查询，total 不再�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: JWT_SECRET 环境变量化与启动校验
+
+**Date**: 2026-06-13
+**Task**: JWT_SECRET 环境变量化与启动校验
+**Branch**: `main`
+
+### Summary
+
+移除 auth.rs 硬编码密钥常量，引入 OnceLock<Vec<u8>> + init_jwt_secret() + validate_secret_length()；create_jwt/decode_jwt 改用 secret() 内部 get_or_init 回退；main.rs 在日志 init 后、init_db 前调用 init。debug 模式缺失密钥用开发默认 + warn，release 模式 fail-fast，长度 < 32 字节启动失败（HS256 规范）。trellis-implement + trellis-check sub-agent 全程协作，runtime e2e 验证 debug/release 双模式与登录→受保护路由闭环全部通过。闭合 M9 部署前安全阻断项；TAGFLOW_ADMIN_PASSWORD 同等问题记为后续任务。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `252514e` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
