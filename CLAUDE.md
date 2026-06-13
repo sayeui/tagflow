@@ -6,7 +6,7 @@
 
 **TagFlow** 是一个轻量级、非侵入式、支持层级标签的多源资源管理系统。项目采用六边形架构（Hexagonal Architecture），使用 Rust（后端）和 Vue 3（前端）实现。
 
-**当前状态：** 已完成 Milestone 1-7（数据库模型、扫描引擎、标签系统、API 层、前端基础架构、认证模块、存储管理）
+**当前状态：** 已完成 Milestone 1-8（数据库模型、扫描引擎、标签系统、API 层、前端基础架构、认证模块、存储管理、异步任务流水线与缩略图生成）
 
 ## 开发命令
 
@@ -51,7 +51,12 @@ npm run build                  # 构建生产版本
 ### 依赖要求
 - Rust 工具链：1.92.0+
 - Node.js：18+ (前端开发)
+- FFmpeg：缩略图生成需要 `ffmpeg` 在 PATH 中（外部命令调用）
 - SQLx CLI（用于手动迁移）：`cargo install sqlx-cli --no-default-features --features sqlite`
+
+### 运行时配置
+- `TAGFLOW_PORT`：API 监听端口（默认 8080）
+- 缩略图缓存目录：`./cache`（启动时由 worker 使用）
 
 ### 日志调试
 
@@ -89,13 +94,21 @@ RUST_LOG=trace cargo run
 ### 模块组织
 
 **`tagflow-core/src/`**
-- `main.rs`：应用入口，初始化日志和数据库
+- `main.rs`：应用入口，初始化日志、数据库与后台任务 worker
 - `lib.rs`：库入口，供 bin 工具使用
 - `models/`：领域模型
   - `db.rs`：数据库模型
   - `dto.rs`：API 数据传输对象
-- `infra/`：基础设施适配器（数据库连接池）
+- `infra/`：基础设施适配器
+  - `db.rs`：数据库连接池
+  - `storage/`：OpenDAL 存储适配器
+  - `thumbnail.rs`：缩略图生成器（调用 FFmpeg）
+- `engine/`：核心引擎
+  - `scanner/`：增量文件扫描（扫描时为媒体文件入列缩略图任务）
+  - `tagger/`：路径标签生成流水线（PathTagger）
+  - `worker.rs`：后台任务调度（轮询 `tasks` 表执行缩略图生成）
 - `core/`：核心领域逻辑
+  - `tag/`：TagManager 标签层级管理
   - `auth.rs`：认证模块（密码哈希、JWT）
 - `api/`：REST API 层
   - `auth.rs`：认证 API（登录、修改密码）
@@ -130,6 +143,7 @@ RUST_LOG=trace cargo run
 3. **`tags`**：层级标签树（通过 `parent_id` 自引用）
 4. **`files`**：文件元数据，支持增量同步（基于哈希的移动检测）
 5. **`file_tags`**：多对多关系表，记录标签来源（自动/手动）
+6. **`tasks`**：异步任务队列（缩略图生成等后台任务）
 
 **关键索引：**
 - `idx_files_lookup (library_id, parent_path, filename)`：扫描时快速去重检测
@@ -143,6 +157,7 @@ RUST_LOG=trace cargo run
 **受保护路由（需要认证）：**
 - `GET /api/v1/tags/tree` - 获取标签树
 - `GET /api/v1/files` - 获取文件列表
+- `GET /api/v1/files/:id/thumbnail` - 获取文件缩略图
 - `POST /api/auth/update-password` - 修改密码
 - `GET /api/v1/libraries` - 获取资源库列表
 - `POST /api/v1/libraries` - 创建资源库
@@ -172,6 +187,13 @@ RUST_LOG=trace cargo run
 - WebDAV 协议（计划中）
 - 连接测试功能
 - 动态添加/删除资源库
+- 触发扫描带并发防护（同库扫描进行中返回 409）
+
+### 异步任务流水线
+- 扫描器发现媒体文件时向 `tasks` 表入列缩略图任务
+- 后台 worker（`engine/worker.rs`）轮询 `tasks` 表并执行任务
+- 缩略图通过外部 FFmpeg 命令生成（图片与视频区分处理），缓存到 `./cache`
+- 前端 FileGrid 通过 `GET /api/v1/files/:id/thumbnail` 加载缩略图
 
 ## 开发指南
 
@@ -207,7 +229,8 @@ tagflow/
 │   │   ├── main.rs           # 应用入口 & API 路由
 │   │   ├── lib.rs            # 库入口（供 bin 工具使用）
 │   │   ├── models/           # 领域模型
-│   │   ├── infra/            # 基础设施层
+│   │   ├── infra/            # 基础设施层（数据库、存储、缩略图）
+│   │   ├── engine/           # 核心引擎（扫描、标签、后台任务）
 │   │   ├── core/             # 核心领域逻辑
 │   │   ├── api/              # REST API 层
 │   │   └── bin/              # 独立工具
@@ -243,7 +266,7 @@ tagflow/
 | **Milestone 6** | 认证模块实现（JWT + Argon2） | ✅ 完成 |
 | **Milestone 6-1** | 认证 UI 与安全设置 | ✅ 完成 |
 | **Milestone 7** | 存储管理模块实现 | ✅ 完成 |
-| **Milestone 8** | 异步任务流水线 + 缩略图生成 | ⏳ 待开始 |
+| **Milestone 8** | 异步任务流水线 + 缩略图生成 | ✅ 完成 |
 | **Milestone 9** | 部署、容器化与产品化实现 | ⏳ 待开始 |
 
 ## 参考文档

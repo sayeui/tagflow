@@ -49,6 +49,7 @@ TagFlow 是一个基于六边形架构设计的本地文件资源管理工具，
 - **非侵入式设计** - 不修改原始文件，所有元数据独立存储
 - **高性能查询** - SQLite + 优化的索引设计，10万+文件查询 <150ms
 - **虚拟滚动** - 前端支持大规模数据流畅渲染
+- **异步缩略图** - 后台任务流水线 + FFmpeg 为图片/视频生成缩略图
 - **用户认证** - JWT + Argon2 密码哈希，安全的登录与会话管理
 - **密码管理** - 支持密码修改和重置工具
 
@@ -61,6 +62,7 @@ TagFlow 是一个基于六边形架构设计的本地文件资源管理工具，
 - **Rust**: 1.92.0 或更高版本
 - **Node.js**: 18+ (前端开发)
 - **SQLite**: 3.35+ (自动通过 SQLx 集成)
+- **FFmpeg**: 缩略图生成需要 `ffmpeg` 在 PATH 中
 
 ### 安装运行
 
@@ -140,16 +142,19 @@ tagflow/
 │   │   │   └── dto.rs        # API 数据传输对象
 │   │   ├── infra/            # 基础设施层
 │   │   │   ├── db.rs         # 数据库连接池
-│   │   │   └── storage/      # OpenDAL 存储适配器
+│   │   │   ├── storage/      # OpenDAL 存储适配器
+│   │   │   └── thumbnail.rs  # 缩略图生成器（FFmpeg）
 │   │   ├── engine/           # 核心引擎
 │   │   │   ├── scanner/      # 增量文件扫描
-│   │   │   └── tagger/       # 标签生成流水线
+│   │   │   ├── tagger/       # 标签生成流水线
+│   │   │   └── worker.rs     # 后台任务调度
 │   │   ├── core/             # 核心领域逻辑
 │   │   │   ├── tag/          # TagManager 标签层级管理
 │   │   │   └── auth.rs       # 认证模块（密码哈希、JWT）
 │   │   └── api/              # REST API 层
 │   │       ├── tag.rs        # 标签树 API
-│   │       ├── file.rs       # 文件检索 API
+│   │       ├── file.rs       # 文件检索 API（含缩略图）
+│   │       ├── library.rs    # 资源库管理 API
 │   │       └── auth.rs       # 认证 API（登录、修改密码）
 │   ├── bin/
 │   │   └── reset-password.rs # 密码重置工具
@@ -164,7 +169,9 @@ tagflow/
 │   │   ├── views/            # 页面组件
 │   │   │   ├── Login.vue     # 登录页面
 │   │   │   ├── Home.vue      # 主页
-│   │   │   └── Security.vue  # 安全设置页
+│   │   │   └── settings/     # 设置页
+│   │   │       ├── Security.vue   # 安全设置
+│   │   │       └── Libraries.vue  # 存储管理
 │   │   ├── stores/           # Pinia 状态管理
 │   │   │   ├── useResourceStore.ts
 │   │   │   └── auth.ts       # 认证状态
@@ -197,6 +204,7 @@ tagflow/
 | `tags` | 层级标签树（支持自引用的父子关系） |
 | `files` | 文件元数据（路径、大小、哈希、状态） |
 | `file_tags` | 文件-标签多对多关系（支持来源标记） |
+| `tasks` | 异步任务队列（缩略图生成等后台任务） |
 
 ### 关键索引
 
@@ -273,8 +281,8 @@ PathTagger 解析
 | **Milestone 5** | Vue 3 前端 + 虚拟滚动组件 | ✅ 完成 |
 | **Milestone 6** | 认证模块实现（JWT + Argon2 + 登录 API） | ✅ 完成 |
 | **Milestone 6-1** | 认证 UI 与安全设置（登录页 + 路由守卫 + 密码管理） | ✅ 完成 |
-| **Milestone 7** | 存储管理模块实现（动态资源库管理） | ⏳ 待开始 |
-| **Milestone 8** | 异步任务流水线 + 缩略图生成 | ⏳ 待开始 |
+| **Milestone 7** | 存储管理模块实现（动态资源库管理） | ✅ 完成 |
+| **Milestone 8** | 异步任务流水线 + 缩略图生成 | ✅ 完成 |
 | **Milestone 9** | 部署、容器化与产品化实现 | ⏳ 待开始 |
 
 ---
