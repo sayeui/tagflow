@@ -71,3 +71,36 @@ list_files 三个查询分支各配条件一致的 COUNT 查询，total 不再�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: 同步项目说明文件至 Milestone 8 实际进展
+
+**Date**: 2026-06-13
+**Task**: 同步项目说明文件至 Milestone 8 实际进展
+**Branch**: `main`
+
+### Summary
+
+将 CLAUDE.md 与 README.md 从 M1-7 状态同步到 M1-8 实际进展：补全 engine/（scanner/tagger/worker）、infra/thumbnail.rs、infra/storage、core/tag/ 模块组织；新增 FFmpeg 运行时依赖与 ./cache 缓存目录说明；数据库表补 tasks；API 路由补 GET /api/v1/files/:id/thumbnail；新增「异步任务流水线」与扫描并发防护（409）说明；README 路线图 M7/M8 标完成、项目结构补 worker.rs/thumbnail.rs/library.rs/settings 子目录。逐条对照 main.rs 路由与源码实现核实。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0e08830` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
