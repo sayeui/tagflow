@@ -68,9 +68,15 @@ async fn main() -> anyhow::Result<()> {
     core::auth::init_jwt_secret()?;
     info!("JWT 密钥已初始化");
 
-    // 初始化数据库 (本地文件 tagflow.db)
-    let db_url = "sqlite:tagflow.db?mode=rwc";
-    let pool = infra::db::init_db(db_url).await?;
+    // 读取运行时配置（DB 路径与缩略图缓存目录）
+    let db_path = infra::config::db_path();
+    let cache_dir = infra::config::cache_dir();
+    info!("数据库路径: {}", db_path);
+    info!("缩略图缓存目录: {}", cache_dir);
+
+    // 初始化数据库（首次启动自动创建文件）
+    let db_url = infra::config::db_url();
+    let pool = infra::db::init_db(&db_url).await?;
 
     info!("数据库初始化成功并已应用迁移。");
 
@@ -79,8 +85,9 @@ async fn main() -> anyhow::Result<()> {
 
     // 启动后台任务 Worker
     let pool_for_worker = pool.clone();
+    let cache_dir_for_worker = cache_dir.clone();
     tokio::spawn(async move {
-        tagflow_core::engine::worker::start_task_worker(pool_for_worker, "./cache".to_string())
+        tagflow_core::engine::worker::start_task_worker(pool_for_worker, cache_dir_for_worker)
             .await;
     });
     info!("后台任务 Worker 已启动");
@@ -118,10 +125,11 @@ async fn main() -> anyhow::Result<()> {
         .layer(middleware::from_fn(api::auth::auth_middleware))
         .layer(middleware::from_fn(request_logging_middleware));
 
-    // 合并路由
+    // 合并路由：API 路由优先匹配，未命中走前端 SPA fallback
     let app = Router::new()
         .merge(auth_routes)
         .merge(protected_routes)
+        .fallback(api::static_files::static_handler)
         .with_state(pool);
 
     // 启动服务器（监听端口可通过 TAGFLOW_PORT 环境变量覆盖，默认 8080）

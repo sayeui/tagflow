@@ -134,8 +134,8 @@ pub async fn list_files(
 /// # 失败响应
 /// - 404: 缩略图不存在
 pub async fn get_thumbnail(Path(id): Path<i32>) -> Result<Response, StatusCode> {
-    // 缩略图缓存目录
-    let cache_dir = "./cache";
+    // 缩略图缓存目录（与 worker 写入端共用同一配置来源）
+    let cache_dir = crate::infra::config::cache_dir();
     let thumbnail_path = format!("{}/{}.webp", cache_dir, id);
 
     // 检查缩略图文件是否存在

@@ -9,7 +9,10 @@
 use anyhow::{Result, anyhow};
 
 // 使用 tagflow_core 库中的模块
-use tagflow_core::{core::auth, infra::db};
+use tagflow_core::{
+    core::auth,
+    infra::{config, db},
+};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -67,9 +70,10 @@ async fn main() -> Result<()> {
     println!("==============================================");
     println!("正在重置用户 '{}' 的密码...", username);
 
-    // 连接数据库
-    let db_url = "sqlite:tagflow.db?mode=rwc";
-    let pool = db::init_db(db_url).await?;
+    // 连接数据库（与主程序共用配置来源，支持 TAGFLOW_DB_PATH 环境变量）
+    let db_url = config::db_url();
+    println!("数据库 URL: {}", db_url);
+    let pool = db::init_db(&db_url).await?;
 
     // 检查用户是否存在
     let count: i64 = sqlx::query_scalar("SELECT count(*) FROM users WHERE username = ?")
