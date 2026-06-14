@@ -170,3 +170,36 @@ main.rs ensure_admin_user 的 count==0 分支重写：3 个常量（ADMIN_PASSWO
 ### Next Steps
 
 - None - task complete
+
+
+## Session 6: M9-1: rust-embed 单二进制 + 配置外部化
+
+**Date**: 2026-06-14
+**Task**: M9-1: rust-embed 单二进制 + 配置外部化
+**Branch**: `main`
+
+### Summary
+
+引入 rust-embed 将 tagflow-ui/dist 嵌入二进制，新增 src/api/static_files.rs 提供 SPA fallback；新增 src/infra/config.rs 收敛 TAGFLOW_DB_PATH/TAGFLOW_CACHE_DIR 环境变量，统一替换 main.rs、api/file.rs、bin/reset-password.rs 中散落硬编码。e2e 验证全绿：前端 200、SPA 路由刷新不 404、MIME 正确（.js→text/javascript）、API 优先匹配、DB 路径真实创建。Release 单二进制可独立提供前后端服务。任务二（Docker + 部署文档）待启动。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1251d02` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
