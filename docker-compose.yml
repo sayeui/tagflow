@@ -1,0 +1,52 @@
+# TagFlow Docker Compose 部署模板
+#
+# 使用方法：
+#   1. 复制 .env.example 为 .env 并填写 TAGFLOW_JWT_SECRET / TAGFLOW_ADMIN_PASSWORD
+#   2. 准备宿主目录：mkdir -p ./cache ./library && chown -R 1000:1000 ./cache
+#   3. docker compose up -d
+#   4. 浏览器访问 http://localhost:8080
+#
+# 详细部署见 doc/部署指南.md
+
+services:
+  tagflow:
+    # 单架构构建（amd64）；如需 arm64 见 Dockerfile 顶部 multi-arch 命令
+    image: tagflow:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tagflow
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # === 必填：JWT 签名密钥（≥ 32 字节，更换会使所有 token 失效）===
+      TAGFLOW_JWT_SECRET: ${TAGFLOW_JWT_SECRET:?must set in .env, >=32 bytes}
+      # === 必填：首次启动创建管理员用密码（≥ 12 字节；已有用户时忽略）===
+      TAGFLOW_ADMIN_PASSWORD: ${TAGFLOW_ADMIN_PASSWORD:?must set in .env, >=12 bytes}
+      # 可选：管理员用户名（首次启动用，默认 admin）
+      TAGFLOW_ADMIN_USERNAME: ${TAGFLOW_ADMIN_USERNAME:-admin}
+      # 可选：监听端口（默认 8080）
+      TAGFLOW_PORT: "8080"
+      # 时区（影响日志时间戳与 time 标签生成）
+      TZ: Asia/Shanghai
+    volumes:
+      # === 数据库持久化（named volume；切勿改为 NAS 共享目录，SQLite WAL 不支持网络 FS）===
+      - tagflow_data:/app/data
+      # === 缩略图缓存（webp，可重建；可放 NAS）===
+      - ./cache:/app/cache
+      # === 资源库挂载示例（按需取消注释，挂载实际照片/视频目录）===
+      # 多个目录建议分别挂载到 /library/<name> 下，前端通过添加 Local 类型 library 引用
+      # - /mnt/photos:/library/photos:ro
+      # - /mnt/videos:/library/videos:ro
+    # Dockerfile 已定义 HEALTHCHECK；此处仅声明状态用于 depends_on（未来扩展用）
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  tagflow_data:
+    driver: local

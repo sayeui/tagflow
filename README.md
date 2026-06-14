@@ -64,32 +64,40 @@ TagFlow 是一个基于六边形架构设计的本地文件资源管理工具，
 - **SQLite**: 3.35+ (自动通过 SQLx 集成)
 - **FFmpeg**: 缩略图生成需要 `ffmpeg` 在 PATH 中
 
-### 安装运行
+### 快速开始（Docker，推荐生产部署）
 
 ```bash
-# 克隆项目
 git clone https://github.com/sayeui/tagflow.git
 cd tagflow
 
+cp .env.example .env
+# 编辑 .env 设置 TAGFLOW_JWT_SECRET（≥ 32B）与 TAGFLOW_ADMIN_PASSWORD（≥ 12B）
+# 建议：openssl rand -hex 32 生成 JWT_SECRET
+
+mkdir -p ./cache && chown -R 1000:1000 ./cache
+docker compose up -d            # 首次构建约 5-15 分钟
+# 浏览器访问 http://localhost:8080
+```
+
+完整部署流程（环境变量、卷规划、备份、重置密码、multi-arch 构建）见 [`doc/部署指南.md`](doc/部署指南.md)。
+
+### 源码编译运行（开发模式）
+
+```bash
 # 启动后端 (终端 1)
 cd tagflow-core
 cargo run
 # API 服务运行在 http://localhost:8080
-# 默认管理员账户: admin / PhVENfYaWv
+# 首次启动需通过 TAGFLOW_JWT_SECRET / TAGFLOW_ADMIN_PASSWORD 环境变量提供凭据
 
 # 启动前端 (终端 2)
 cd tagflow-ui
 npm install
 npm run dev
-# 前端界面运行在 http://localhost:5173
+# 前端开发服务器 http://localhost:5173，/api 请求自动代理到 :8080
 ```
 
-### Docker 部署（计划中）
-
-```bash
-docker build -t tagflow .
-docker run -p 8080:8080 -v ./data:/data tagflow
-```
+> Release 构建（`cargo build --release`）产出的单二进制已通过 `rust-embed` 嵌入前端产物，可脱离 npm 独立运行。
 
 ---
 

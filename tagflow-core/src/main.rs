@@ -96,6 +96,7 @@ async fn main() -> anyhow::Result<()> {
     // 1. 公开路由（无需认证）
     let auth_routes = Router::new()
         .route("/api/auth/login", post(api::auth::login))
+        .route("/api/health", get(api::health::health))
         .layer(middleware::from_fn(request_logging_middleware));
 
     // 2. 受保护的路由（需要认证）

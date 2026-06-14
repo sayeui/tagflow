@@ -1,0 +1,46 @@
+# === Rust 构建产物 ===
+tagflow-core/target
+tagflow-core/**/target
+
+# === Rust 缓存 ===
+tagflow-core/.sqlx
+
+# === 前端构建产物（Dockerfile 内会重新 npm run build）===
+tagflow-ui/node_modules
+tagflow-ui/dist
+
+# === 本地数据库与缓存（运行时挂卷产生，不应进镜像）===
+tagflow-core/tagflow.db
+tagflow-core/tagflow.db-shm
+tagflow-core/tagflow.db-wal
+tagflow-core/cache
+tagflow-core/test_dir
+
+# === 版本控制 ===
+.git
+.gitignore
+.gitattributes
+
+# === IDE / 编辑器 ===
+.vscode
+.idea
+*.swp
+.DS_Store
+
+# === 文档与设计稿（不影响运行）===
+doc
+*.md
+!tagflow-ui/README.md
+!tagflow-core/README.md
+
+# === Trellis 工作区（开发流程文件）===
+.trellis
+
+# === CI / 部署配置（避免上下文过大）===
+.github
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# === 许可证与杂项 ===
+LICENSE
