@@ -116,9 +116,7 @@ pub async fn auth_middleware(mut req: Request<Body>, next: Next) -> Result<Respo
 
     if let Some(auth_value) = auth_header {
         // 检查是否为 Bearer 令牌
-        if auth_value.starts_with("Bearer ") {
-            let token = &auth_value[7..];
-
+        if let Some(token) = auth_value.strip_prefix("Bearer ") {
             // 验证令牌
             match decode_jwt(token) {
                 Ok(claims) => {

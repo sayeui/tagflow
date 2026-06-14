@@ -10,13 +10,13 @@ pub enum TagCategory {
     Time,
 }
 
-impl ToString for TagCategory {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for TagCategory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TagCategory::Path => "path".to_string(),
-            TagCategory::Type => "type".to_string(),
-            TagCategory::User => "user".to_string(),
-            TagCategory::Time => "time".to_string(),
+            TagCategory::Path => write!(f, "path"),
+            TagCategory::Type => write!(f, "type"),
+            TagCategory::User => write!(f, "user"),
+            TagCategory::Time => write!(f, "time"),
         }
     }
 }
