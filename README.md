@@ -291,7 +291,8 @@ PathTagger 解析
 | **Milestone 6-1** | 认证 UI 与安全设置（登录页 + 路由守卫 + 密码管理） | ✅ 完成 |
 | **Milestone 7** | 存储管理模块实现（动态资源库管理） | ✅ 完成 |
 | **Milestone 8** | 异步任务流水线 + 缩略图生成 | ✅ 完成 |
-| **Milestone 9** | 部署、容器化与产品化实现 | ⏳ 待开始 |
+| **Milestone 9-1** | rust-embed 嵌入前端 + DB/cache 路径配置化 | ✅ 完成 |
+| **Milestone 9-2** | Docker 化（多阶段 Dockerfile + compose + 部署文档） | ✅ 完成 |
 
 ---
 
