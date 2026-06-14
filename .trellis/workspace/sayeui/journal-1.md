@@ -203,3 +203,38 @@ main.rs ensure_admin_user 的 count==0 分支重写：3 个常量（ADMIN_PASSWO
 ### Next Steps
 
 - None - task complete
+
+
+## Session 7: M9-2 Docker 化与部署文档
+
+**Date**: 2026-06-14
+**Task**: M9-2 Docker 化与部署文档
+**Branch**: `main`
+
+### Summary
+
+三阶段 Dockerfile（node + cargo-chef + Alpine runtime），docker-compose 模板（含 fail-fast 必填变量），完整部署指南。新增 /api/health 端点供容器探活。134MB 镜像，e2e 全过：health 200 / SPA 477B / UID 1000 / ffmpeg 6.1.1 / tini PID 1 / SQLite WAL 持久化 / admin 创建幂等 / reset-password CLI 容器内可用。期间发现并修复两个预存 clippy 警告（auth.rs manual_strip / db.rs to_string_trait_impl），作为独立 refactor commit。路线图 M9 拆分为 M9-1/M9-2 标记完成。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `df2623b` | (see git log) |
+| `f6e8421` | (see git log) |
+| `4bbb6e2` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
