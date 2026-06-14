@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "验收测试覆盖与 lint 标准"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "fallback / env 缺失场景的失败行为是否一致"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "启动日志格式与现有风格一致性"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "前端 SPA 刷新不返回 404 的跨层契约"}

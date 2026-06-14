@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "决定新文件 api/static_files.rs 的归属与命名"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "环境变量解析失败、静态资源未命中的错误处理风格"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "启动期 db/cache 路径打印与现有 ensure_admin_user info! 风格保持一致"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "新增配置加载逻辑的测试覆盖要求"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "main.rs 启动配置收敛，避免硬编码字符串散落"}
