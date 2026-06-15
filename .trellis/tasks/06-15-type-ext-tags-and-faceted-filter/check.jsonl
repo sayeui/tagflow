@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "review checklist、forbidden patterns、单测覆盖标准(tagger/AND 查询)"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "校验 SQL 是否符合运行时查询约定、migration 是否幂等、WAL/FK pragma"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "校验 tagger/backfill 的 anyhow 边界、API 层 StatusCode 映射"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "vue-tsc 是否通过、手动测试 bar、forbidden patterns"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "校验 tag_ids DTO 镜像、无 any、strict TS"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "校验 Pinia store 重构是否符合 options-style 约定、localStorage 边界"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "校验 tag_ids/category 跨层数据流一致性、无字段脱节"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "校验是否重复造轮子(ensure_tag/type 映射)、有无遗漏的复用点"}

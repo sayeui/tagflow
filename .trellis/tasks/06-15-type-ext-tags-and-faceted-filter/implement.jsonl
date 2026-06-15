@@ -1,0 +1,11 @@
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "新增 tagger 文件归属 engine/tagger/，tagger 如何被 scanner 接线，模块声明规范"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "新 tagger 的 INSERT OR IGNORE 模式、app_meta migration 写法、多标签 AND 查询(GROUP BY/HAVING)的 sqlx 运行时查询约定"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "tagger 用 anyhow::Result，backfill 钩子的错误边界处理"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "backfill 启动钩子、tagger 内部的 debug!/info!/warn! 级别选择"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "内联单测(#[cfg(test)])写法、forbidden patterns"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "useResourceStore 从 selectedTagId 单值改 selectedTagIds 数组，options-style Pinia 约定"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "TagItem.vue 加 checkbox + category 分组的递归组件改写，script setup + typed emits"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "DTO 镜像 snake_case(tag_ids)，axios paramsSerializer 的 TS 类型"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "vue-tsc gate、手动测试标准"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "tag_ids 数组从 backend FileQuery → DTO → 前端 store → axios 的跨层数据流一致性，category 字段前后端镜像"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "ensure_tag 泛化时复用现有 ensure_path_tags 逻辑，type 映射表抽取为常量前先 grep 是否已有"}
