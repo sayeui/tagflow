@@ -12,5 +12,8 @@ tagflow-ui/dist
 *.db-shm
 *.db-wal
 
+# Docker 镜像导出产物（docker save 输出，用于传输到 NAS）
+*.tar
+
 # Claude Code 本地个人配置
 .claude/settings.local.json
