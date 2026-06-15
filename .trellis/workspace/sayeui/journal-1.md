@@ -238,3 +238,38 @@ main.rs ensure_admin_user 的 count==0 分支重写：3 个常量（ADMIN_PASSWO
 ### Next Steps
 
 - None - task complete
+
+
+## Session 8: 类型/扩展名/时间自动标签 + 多标签分面过滤
+
+**Date**: 2026-06-15
+**Task**: 类型/扩展名/时间自动标签 + 多标签分面过滤
+**Branch**: `main`
+
+### Summary
+
+NAS 部署核对发现自动标签引擎只有 path 一维、无多标签过滤。补齐 ext/type/time 三个 tagger（新增 text 桶含 txt/md/log/csv）+ 递归 CTE 多标签 AND 查询 + app_meta 版本回填 + 前端复选框分区树 + 面包屑。代码/API/UI 三层 e2e 验证通过；发现并修复 axum serde_urlencoded 不支持重复 key 成 Vec 的坑（改逗号分隔，写入 spec）。挂载 chrome-devtools MCP 用于线上回归。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `be96a9d` | (see git log) |
+| `92af9d1` | (see git log) |
+| `9f231fd` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
