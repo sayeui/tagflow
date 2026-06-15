@@ -61,11 +61,20 @@ export const tagApi = {
 
 export const fileApi = {
   list: (params?: {
-    tag_id?: number
+    tag_ids?: number[]
     recursive?: boolean
     page?: number
     limit?: number
-  }) => instance.get('/v1/files', { params }),
+  }) => {
+    // axum serde_urlencoded 不支持重复 key 成 Vec，改用逗号分隔（tag_ids=3,7）。
+    const { tag_ids, ...rest } = params ?? {}
+    return instance.get('/v1/files', {
+      params: {
+        ...rest,
+        ...(tag_ids && tag_ids.length ? { tag_ids: tag_ids.join(',') } : {}),
+      },
+    })
+  },
 }
 
 export const libraryApi = {

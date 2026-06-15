@@ -28,10 +28,33 @@ pub struct FileItem {
 
 #[derive(Deserialize, Debug)]
 pub struct FileQuery {
+    /// 多标签 AND 过滤，逗号分隔（`tag_ids=3,7`）。
+    /// 选用逗号而非重复 key：axum 的 `serde_urlencoded` 不支持重复 key 反序列化成 Vec。
+    /// 空或缺失表示不过滤。兼容旧前端 `tag_id` 单值（并入此集合）。
+    #[serde(default, deserialize_with = "deserialize_csv_i32")]
+    pub tag_ids: Vec<i32>,
+    /// 旧版单标签参数（向后兼容，并入 `tag_ids`）。
     pub tag_id: Option<i32>,
     pub recursive: Option<bool>,
     pub page: Option<i64>,
     pub limit: Option<i64>,
+}
+
+/// 反序列化逗号分隔的 i32 列表（`"3,7,12"` → `vec![3,7,12]`，`""` → `vec![]`）。
+fn deserialize_csv_i32<'de, D>(deserializer: D) -> Result<Vec<i32>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::Deserialize;
+    let raw = Option::<String>::deserialize(deserializer)?;
+    match raw {
+        None => Ok(vec![]),
+        Some(s) if s.trim().is_empty() => Ok(vec![]),
+        Some(s) => s
+            .split(',')
+            .map(|x| x.trim().parse::<i32>().map_err(serde::de::Error::custom))
+            .collect(),
+    }
 }
 
 impl From<FileEntry> for FileItem {

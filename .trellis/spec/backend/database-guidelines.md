@@ -71,3 +71,24 @@ WHERE ft.tag_id IN (SELECT id FROM sub_tags)
 - Do not forget `PRAGMA foreign_keys = ON` is set in `init_db`; tests creating their own pools must set it too, or FK constraints silently won't apply.
 - Do not use `sqlx::query!`/`query_as!` macros — the project has no offline metadata; builds would fail without `DATABASE_URL`.
 - Avoid per-request spawned heavy DB work; enqueue into the `tasks` table and let `engine/worker.rs` process it (poll loop, 5s sleep when idle).
+
+### axum Query 不支持重复 key 成 Vec
+
+axum 的 `Query<T>` 用 `serde_urlencoded`，**不能**把 `?tag_ids=1&tag_ids=2` 反序列化成 `tag_ids: Vec<i32>` —— 重复 key 会报 400「Failed to deserialize」；`tag_ids[]=1&tag_ids[]=2` 虽不报错但 key 不匹配，静默退化为空集。
+
+数组型查询参数一律走**逗号分隔**：
+
+```rust
+#[serde(default, deserialize_with = "deserialize_csv_i32")]
+pub tag_ids: Vec<i32>,
+
+fn deserialize_csv_i32<'de, D: serde::Deserializer<'de>>(de: D) -> Result<Vec<i32>, D::Error> {
+    let raw = Option::<String>::deserialize(de)?;
+    match raw {
+        None | Some(s) if raw.as_ref().map_or(true, |s| s.trim().is_empty()) => Ok(vec![]),
+        Some(s) => s.split(',').map(|x| x.trim().parse().map_err(serde::de::Error::custom)).collect(),
+    }
+}
+```
+
+前端对应 `params.tag_ids.join(',')`（见 `tagflow-ui/src/api/http.ts` `fileApi.list`）。参考实现：`models/dto.rs` `FileQuery`、`api/file.rs` 多标签 AND 查询。

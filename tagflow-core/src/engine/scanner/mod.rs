@@ -1,5 +1,5 @@
 use crate::core::tag::TagManager;
-use crate::engine::tagger::PathTagger;
+use crate::engine::tagger;
 use crate::engine::worker;
 use crate::infra::storage::StorageManager;
 use crate::models::db::Library;
@@ -117,10 +117,9 @@ impl Scanner {
 
         let file_id = res.last_insert_rowid() as i32;
 
-        // 2. 触发标签化 (Milestone 3 核心)
+        // 2. 触发标签化（多维度 tagger 流水线）
         let tag_mgr = TagManager::new(self.db.clone());
-        let path_tagger = PathTagger::new(tag_mgr);
-        path_tagger.process_path(file_id, &parent).await?;
+        tagger::run_all(&tag_mgr, file_id, &parent, ext.as_deref(), mtime).await?;
 
         // 3. 媒体文件入队缩略图任务
         self.maybe_enqueue_thumbnail(file_id, ext.as_deref())

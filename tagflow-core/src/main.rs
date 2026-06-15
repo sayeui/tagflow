@@ -83,6 +83,9 @@ async fn main() -> anyhow::Result<()> {
     // 初始化管理员用户（如果不存在）
     ensure_admin_user(&pool).await?;
 
+    // 回填存量标签（tagger 版本落后时对历史文件补齐 ext/type/time 维度）
+    tagflow_core::engine::backfill::run_if_needed(&pool).await?;
+
     // 启动后台任务 Worker
     let pool_for_worker = pool.clone();
     let cache_dir_for_worker = cache_dir.clone();
