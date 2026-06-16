@@ -28,8 +28,8 @@ const validateForm = (): boolean => {
     return false
   }
 
-  if (newPassword.value.length < 6) {
-    error.value = '新密码长度至少为 6 位'
+  if (newPassword.value.length < 12) {
+    error.value = '新密码长度至少为 12 位'
     return false
   }
 
@@ -133,11 +133,11 @@ const handleSubmit = async () => {
             v-model="newPassword"
             type="password"
             required
-            minlength="6"
+            minlength="12"
             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
-            placeholder="请输入新密码（至少 6 位）"
+            placeholder="请输入新密码（至少 12 位）"
           />
-          <p class="mt-1 text-sm text-gray-500">密码长度至少为 6 位</p>
+          <p class="mt-1 text-sm text-gray-500">密码长度至少为 12 位</p>
         </div>
 
         <!-- 确认新密码 -->

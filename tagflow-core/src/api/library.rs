@@ -52,6 +52,37 @@ fn validate_path_security(path: &str) -> Result<(), &'static str> {
     Ok(())
 }
 
+/// 校验本地路径在文件系统上的可达性：必须存在、是目录、可读。
+///
+/// 抽取自 `test_library_connection` 的核心校验逻辑，供 `create_library` 与
+/// `test_library_connection` 共用，避免两处对 `exists`/`is_dir`/`read_dir`
+/// 的判断彼此漂移（参见 code-reuse-thinking-guide.md「同一份输出由不对称机制
+/// 产生」的预防要点）。
+///
+/// 返回 `Ok(())` 表示路径可访问；`Err(message)` 携带面向用户的中文提示。
+fn validate_local_path_readable(base_path: &str) -> Result<(), String> {
+    let path = std::path::Path::new(base_path);
+
+    if !path.exists() {
+        warn!("路径不存在: {}", base_path);
+        return Err("路径不存在".to_string());
+    }
+
+    if !path.is_dir() {
+        warn!("路径不是目录: {}", base_path);
+        return Err("路径不是目录".to_string());
+    }
+
+    // 检查是否可读（read_dir 是判定目录可读的标准探针）
+    if let Err(e) = std::fs::read_dir(path) {
+        warn!("路径无权限: {} - {}", base_path, e);
+        return Err("无权限访问此目录".to_string());
+    }
+
+    debug!("路径可达性校验通过: {}", base_path);
+    Ok(())
+}
+
 /// 获取所有已配置的资源库
 ///
 /// # 路由
@@ -121,6 +152,14 @@ pub async fn create_library(
     // 路径安全验证
     if let Err(err_msg) = validate_path_security(&payload.base_path) {
         warn!("路径安全验证失败: {} - {}", payload.base_path, err_msg);
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    // 路径可达性验证：避免错填路径后 OpenDAL Fs 自动建目录产生「幽灵空库」
+    // （与「非侵入式」定位有张力）。仅 local 协议需要文件系统校验。
+    // 注意：`validate_local_path_readable` 内部已对失败原因 `warn!`，此处不再重复
+    // 打日志，避免同一拒绝在日志中出现两遍（参见 logging-guidelines.md）。
+    if payload.protocol == "local" && validate_local_path_readable(&payload.base_path).is_err() {
         return Err(StatusCode::BAD_REQUEST);
     }
 
@@ -218,32 +257,20 @@ pub async fn test_library_connection(
             });
         }
 
-        // 检查本地目录是否存在且可读
-        let path = std::path::Path::new(&payload.base_path);
-
-        let (reachable, message) = if path.exists() {
-            if path.is_dir() {
-                // 检查是否可读
-                match std::fs::read_dir(path) {
-                    Ok(_) => {
-                        info!("路径测试成功: {}", payload.base_path);
-                        (true, "路径可访问".to_string())
-                    }
-                    Err(e) => {
-                        warn!("路径无权限: {} - {}", payload.base_path, e);
-                        (false, "无权限访问此目录".to_string())
-                    }
-                }
-            } else {
-                warn!("路径不是目录: {}", payload.base_path);
-                (false, "路径不是目录".to_string())
+        // 路径可达性验证（与 create_library 共用同一份逻辑）
+        match validate_local_path_readable(&payload.base_path) {
+            Ok(_) => {
+                info!("路径测试成功: {}", payload.base_path);
+                Json(TestConnectionResponse {
+                    reachable: true,
+                    message: "路径可访问".to_string(),
+                })
             }
-        } else {
-            warn!("路径不存在: {}", payload.base_path);
-            (false, "路径不存在".to_string())
-        };
-
-        Json(TestConnectionResponse { reachable, message })
+            Err(message) => Json(TestConnectionResponse {
+                reachable: false,
+                message,
+            }),
+        }
     } else if payload.protocol == "webdav" {
         warn!("WebDAV 协议暂未实现");
         // WebDAV 暂不支持
@@ -327,4 +354,60 @@ pub async fn trigger_scan(
     });
 
     StatusCode::ACCEPTED
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_local_path_readable_nonexistent() {
+        // 不存在的绝对路径
+        let ghost = "/tmp/tagflow-ghost-does-not-exist-1234567890";
+        // 确保前提成立：该路径确实不存在
+        assert!(!std::path::Path::new(ghost).exists());
+
+        let result = validate_local_path_readable(ghost);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "路径不存在");
+    }
+
+    #[test]
+    fn test_validate_local_path_readable_not_a_directory() {
+        // 用本测试文件本身作为「存在但非目录」的样本
+        let this_file = env!("CARGO_MANIFEST_DIR").to_string() + "/src/api/library.rs";
+        assert!(
+            std::path::Path::new(&this_file).exists(),
+            "测试样本文件应存在"
+        );
+        assert!(!std::path::Path::new(&this_file).is_dir());
+
+        let result = validate_local_path_readable(&this_file);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "路径不是目录");
+    }
+
+    #[test]
+    fn test_validate_local_path_readable_existing_directory() {
+        // target 目录在 cargo test 运行时必然存在且可读
+        let target_dir = env!("CARGO_MANIFEST_DIR").to_string() + "/target";
+        let target_dir = if std::path::Path::new(&target_dir).is_dir() {
+            target_dir
+        } else {
+            // 兜底：用系统临时目录
+            std::env::temp_dir().to_string_lossy().into_owned()
+        };
+        assert!(std::path::Path::new(&target_dir).is_dir());
+
+        let result = validate_local_path_readable(&target_dir);
+        assert!(result.is_ok(), "存在的目录应通过校验");
+    }
+
+    #[test]
+    fn test_validate_path_security_rejects_traversal() {
+        assert!(validate_path_security("../etc/passwd").is_err());
+        assert!(validate_path_security("/data/./foo").is_err());
+        assert!(validate_path_security("relative/path").is_err());
+        assert!(validate_path_security("/mnt/photos").is_ok());
+    }
 }

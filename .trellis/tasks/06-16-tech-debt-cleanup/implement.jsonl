@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "create_library 路径不存在返回 400、update_password 新密码 <12 字节返回 4xx 的 StatusCode 映射与 anyhow/thiserror 边界"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "create_library 校验失败用 warn! 记录，与现有 validate_path_security 的 warn! 风格一致"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "create_library 路径校验、update_password 长度校验的 #[cfg(test)] 内联单测写法与 forbidden patterns"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Security.vue 密码 4 处文案/minlength 改写、Libraries.vue triggerScan 删 501 分支加 409 分支的 script setup 改动"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "Libraries.vue triggerScan 的 error.response?.status 判别保持无 any、strict TS"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "vue-tsc gate、前端手动测试 bar（短密码拦截、409 文案）"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "create_library 的 exists/是目录/可读校验须复用 test_connection 现有逻辑，避免重复造轮子"}

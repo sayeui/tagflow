@@ -12,6 +12,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
+use tracing::warn;
 
 use crate::core::auth::{Claims, create_jwt, decode_jwt, hash_password, verify_password};
 
@@ -121,7 +122,10 @@ pub async fn auth_middleware(mut req: Request<Body>, next: Next) -> Result<Respo
     //    未来可硬化为短时效 media token。
     let query_token = query_token(req.uri().query());
 
-    match header_token.or(query_token).and_then(|t| decode_jwt(t).ok()) {
+    match header_token
+        .or(query_token)
+        .and_then(|t| decode_jwt(t).ok())
+    {
         Some(claims) => {
             req.extensions_mut().insert(claims);
             Ok(next.run(req).await)
@@ -168,6 +172,19 @@ pub struct UpdatePasswordRequest {
     pub new_password: String,
 }
 
+/// 新密码最小长度门槛（字节）。
+///
+/// 与 `TAGFLOW_ADMIN_PASSWORD` 的 ≥12 字节安全标准对齐（见
+/// 06-13-tagflow-admin-password-fail-fast）。前端 Security.vue 同步使用 12。
+pub const MIN_NEW_PASSWORD_BYTES: usize = 12;
+
+/// 校验新密码是否满足最小长度门槛（按字节计数）。
+///
+/// 抽成纯函数便于单测；`update_password` handler 在旧密码校验通过后调用。
+fn is_new_password_long_enough(new_password: &str) -> bool {
+    new_password.len() >= MIN_NEW_PASSWORD_BYTES
+}
+
 /// 修改密码 API 处理函数
 ///
 /// # 路由
@@ -190,6 +207,7 @@ pub struct UpdatePasswordRequest {
 /// 无响应体
 ///
 /// # 失败响应
+/// - 400: 新密码长度不足 12 字节
 /// - 403: 旧密码错误
 /// - 401: 未授权
 /// - 500: 服务器错误
@@ -224,7 +242,19 @@ pub async fn update_password(
         return StatusCode::FORBIDDEN;
     }
 
-    // 4. 加密新密码并更新数据库
+    // 4. 校验新密码长度门槛：≥12 字节，与项目 ADMIN_PASSWORD 安全标准对齐，
+    //    防止前端校验被绕过。置于旧密码校验之后避免向未认证请求泄露长度策略。
+    //    以字节计数，与 TAGFLOW_ADMIN_PASSWORD 的 ≥12 字节门槛一致。
+    if !is_new_password_long_enough(&payload.new_password) {
+        warn!(
+            "新密码长度不足 12 字节: username={}, len={}",
+            username,
+            payload.new_password.len()
+        );
+        return StatusCode::BAD_REQUEST;
+    }
+
+    // 5. 加密新密码并更新数据库
     match hash_password(&payload.new_password) {
         Ok(new_hash) => {
             if sqlx::query("UPDATE users SET password_hash = ? WHERE username = ?")
@@ -267,13 +297,28 @@ mod tests {
     #[test]
     fn query_token_extracts_first_non_empty() {
         assert_eq!(query_token(Some("token=abc")), Some("abc"));
-        assert_eq!(
-            query_token(Some("foo=1&token=abc&bar=2")),
-            Some("abc")
-        );
+        assert_eq!(query_token(Some("foo=1&token=abc&bar=2")), Some("abc"));
         assert_eq!(query_token(Some("foo=1")), None);
         assert_eq!(query_token(None), None);
         // 空值不算有效 token（避免拼接 `?token=` 时误判）
         assert_eq!(query_token(Some("token=")), None);
+    }
+
+    #[test]
+    fn test_is_new_password_long_enough_ascii() {
+        // ASCII：字节数 = 字符数
+        assert!(!is_new_password_long_enough("")); // 0 字节
+        assert!(!is_new_password_long_enough("shortpass1")); // 11 字节
+        assert!(is_new_password_long_enough("longenough12")); // 12 字节（恰好达标）
+        assert!(is_new_password_long_enough("even-longer-password")); // >12 字节
+    }
+
+    #[test]
+    fn test_is_new_password_long_enough_multibyte_counts_bytes() {
+        // 多字节字符按字节计数（与 TAGFLOW_ADMIN_PASSWORD 字节门槛一致）
+        // 「密码密码密码密码」12 个汉字 = 36 字节，达标
+        assert!(is_new_password_long_enough("密码密码密码密码"));
+        // 「一二」2 个汉字 = 6 字节，不达标
+        assert!(!is_new_password_long_enough("一二"));
     }
 }

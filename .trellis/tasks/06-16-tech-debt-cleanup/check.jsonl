@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "review checklist、单测是否覆盖 create_library 路径不存在/非目录/不可读、update_password <12 字节"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "校验 StatusCode 映射正确（400/4xx）、校验失败发生在 INSERT 之前无脏数据"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "校验 warn! 级别与现有风格一致、无多余 error!"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "vue-tsc 通过、501 死代码确已删除、409 文案分支正确"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "校验无 any、error.response?.status 类型安全"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "校验 create_library 是否复用 test_connection 校验逻辑、无重复造轮子或遗漏复用点"}

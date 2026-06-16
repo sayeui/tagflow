@@ -196,8 +196,8 @@ const triggerScan = async (id: number, name: string) => {
     await libraryApi.triggerScan(id)
     showToast(`已启动资源库 "${name}" 的扫描`, 'success')
   } catch (error: any) {
-    if (error.response?.status === 501) {
-      showToast('扫描功能尚未实现', 'warning')
+    if (error.response?.status === 409) {
+      showToast('该资源库正在扫描中，请稍后再试', 'warning')
     } else {
       showToast('启动扫描失败', 'error')
     }
