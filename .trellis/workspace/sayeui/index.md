@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 11
+- **Total Sessions**: 12
 - **Last Active**: 2026-06-16
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~375 | Active |
+| `journal-1.md` | ~408 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 12 | 2026-06-16 | 更新 README：去 AI 介绍、功能清单、里程碑路线图与 v0.2.0 规划 | `e27deef` | `main` |
 | 11 | 2026-06-16 | 手动标签（user tag） | `30b9f1c` | `main` |
 | 10 | 2026-06-16 | 技术债清理：密码文案/路径校验/扫描死代码 | `b0867d8`, `2e9b977` | `main` |
 | 9 | 2026-06-16 | 媒体预览抽屉：文件详情 + 多类型预览 + 下载 | `7415c62` | `main` |

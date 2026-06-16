@@ -373,3 +373,36 @@ NAS 部署核对发现自动标签引擎只有 path 一维、无多标签过滤�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 12: 更新 README：去 AI 介绍、功能清单、里程碑路线图与 v0.2.0 规划
+
+**Date**: 2026-06-16
+**Task**: 更新 README：去 AI 介绍、功能清单、里程碑路线图与 v0.2.0 规划
+**Branch**: `main`
+
+### Summary
+
+更新 README 反映 v0.1.0 Beta 后真实状态：删除 3 处 AI 工具/模型介绍（顶部徽章、AI 声明章节、底部标语）+ 项目结构树 CLAUDE.md 注释中性化；新增「功能清单」章节（6 子系统分组，✅/🔄/📅 三态）；路线图改里程碑视角（M1–M9-2 + v0.1.0 Beta ✅ + v0.2.0 Beta 📅）；后续迭代计划按里程碑重组——下一个里程碑 v0.2.0 Beta = 多源接入与自动同步（WebDAV + 定时增量扫描），文件操作暂不考虑，批量标签/全文搜索/元数据留 v0.3.0+。产品蓝图 gemini 链接暂时保留。同步更新 memory（v0.1.0→Beta、文件操作暂缓、v0.2.0 规划）。纯文档 1 commit，与 worktree 无冲突。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e27deef` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
