@@ -1,0 +1,2 @@
+{"file": "doc/TagFlow 系统详细设计规格说明书.md", "reason": "功能清单、模块划分、原始路线图的权威 spec，确保 README 功能描述与系统设计一致"}
+{"file": "doc/部署指南.md", "reason": "README 快速开始/部署描述需与其一致（环境变量、compose、密码重置、健康检查）"}
