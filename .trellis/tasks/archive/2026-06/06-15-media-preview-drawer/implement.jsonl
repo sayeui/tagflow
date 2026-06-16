@@ -1,0 +1,11 @@
+{"file": ".trellis/tasks/06-15-media-preview-drawer/prd.md", "reason": "任务 PRD：D1-D7 决策、content/detail 端点规格、?token= 鉴权方案、文本/md/pdf/图片/视频/音频分流逻辑、抽屉动画要求——实现的唯一权威需求源"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "detail 端点 join file_tags+tags 查标签的 sqlx 运行时查询模式、递归 CTE 参考、FromRow 约定；避免误用 query! 宏"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "content 端点 StatusCode 映射：404(file_id 不存在/status!=1)、206(Range)、416(Range 越界)、500；anyhow 在 API 层下、validation 在 boundary"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "转码失败/Range 解析/OpenDAL 读取错误的 tracing 日志级别规范（warn 可预期、error 需关注），禁止 println!"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "inline 单测规范（content 端点 Range 解析、转码、404、download header 各一个 #[tokio::test]）、clippy 必过、forbidden patterns"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "FileDrawer.vue 用 script setup + typed props/emits、纯 Tailwind 样式、Transition 用法需符合现有约定"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "useResourceStore 新增 selectedFileId/openFile/closeFile 须遵循 options-style Pinia 约定；auth store token 所有权供 contentUrl 取用"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "FileDetail/FileTagInfo TS 镜像后端 DTO（snake_case 保持一致）、严格 TS 无 any、markdown-it 配置类型"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "vue-tsc 构建闸门、forbidden patterns、手动测试门槛（4 类型 e2e）"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "本任务核心：content-type 推断、Range/206 契约、?token= 鉴权跨前后端一致性——必须想清楚数据在哪一层处理（后端转码 vs 前端渲染）"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "contentUrl helper 同时服务 缩略图/content/下载（三处共享 token 拼接），避免重复实现；新增 helper 前先搜索现有模式"}

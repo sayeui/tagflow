@@ -1,0 +1,8 @@
+{"file": ".trellis/tasks/06-15-media-preview-drawer/prd.md", "reason": "检查对照 Acceptance Criteria 与 Definition of Done 逐条核对：4 类型预览、Range seek、GBK 转码、md 渲染 html:false、pdf iframe、缩略图修复、抽屉动画"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "检查后端单测覆盖（Range/转码/404/download）、clippy 零警告、forbidden patterns"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "检查 detail 端点 sqlx 查询符合运行时模式、无注入、命名约定"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "检查 StatusCode 映射正确（206 Content-Range 完整、404/416 边界、Content-Disposition 编码）"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "检查 vue-tsc 通过、组件约定、forbidden patterns"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "检查 TS 类型严格、DTO 镜像一致、无 any、markdown-it 配置安全（html:false）"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "检查 FileDrawer 组件结构符合 script setup/Tailwind/Transition 约定"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "检查 content-type/Range/token 前后端契约一致，无跨层错位（如前端期望 header 鉴权却用 src、或后端未处理 Range）"}
