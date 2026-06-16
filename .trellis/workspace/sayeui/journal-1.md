@@ -408,44 +408,6 @@ NAS 部署核对发现自动标签引擎只有 path 一维、无多标签过滤�
 - None - task complete
 
 
-## Session 13: 文件视图增强——真实 e2e 验证
-
-**Date**: 2026-06-16
-**Task**: file-view-enhancements（06-16-file-view-enhancements）
-**Branch**: `main`
-
-### Summary
-
-对 commit `443e220` 的 4 项改动做真实进程 e2e（API 层 + UI 层）。重建 debug 二进制（原二进制 14:21 早于 commit 16:16，不含新代码），test_dir 用 ffmpeg 生成 73 个测试 png（report-001~040 / image-001~030 / 设计文档_中文 / 50percent / alpha_beta），扫描入库 76 文件，后端 8080 + 前端 5173 + Chrome DevTools 驱动。
-
-API 层 10 场景全绿：分页 p1=50/p2=26/p3=0（total 76）、搜索 report=40 / image=30 / 中文(设计文档)=1、`%`/`_` 转义边界（50percent、alpha_beta 各 1，当字面量）、搜索+分页组合（report p2=0, total=40）、不存在词=0。UI 层 5 验收点全绿：①卡片无重叠（DOM 测量相邻行 translateY 间距恒 176px、overflow=0、overlapDetected=false）②无限滚动（滚底 50/76→76/76）③搜索框（report→40/40 全 report）④视图切换（列表视图无缩略图/名称-大小-时间，集合 40/40 不变）⑤偏好持久化（tagflow.viewMode 写 localStorage，刷新后恢复列表视图）。
-
-### Main Changes
-
-无代码改动（验证既有 commit `443e220`）；prd.md 勾选全部 Requirements/AC 复选框并追加 E2E 验证结果章节。
-
-### Git Commits
-
-| Hash | Message |
-|------|---------|
-| (无新提交) | e2e 验证，工作区保持 clean |
-
-### Testing
-
-- [OK] API 层 e2e 10 场景全绿（curl + python）
-- [OK] UI 层 e2e 5 验收点全绿（Chrome DevTools DOM 测量 + 真实交互）
-- [OK] 测试数据清理：73 png 删除、db(files/tags/tasks/file_tags) 归零、cache 缩略图清空、工作区 clean
-- ⚠️ admin 密码为登录验证已用 reset-password 重置为 `E2eVerify!2026`（原密码未知），需用户自行改回
-
-### Status
-
-[OK] **Completed**
-
-### Next Steps
-
-- 任务可走 finish/archive 收尾（待用户确认）
-
-
 ## Session 13: 文件视图增强——真实 e2e 验证与收尾
 
 **Date**: 2026-06-16
@@ -458,7 +420,7 @@ API 层 10 场景全绿：分页 p1=50/p2=26/p3=0（total 76）、搜索 report=
 
 ### Main Changes
 
-(Add details)
+无新代码改动（验证既有 commit `443e220`）；prd.md 勾选全部 Requirements(4)/AC(5) 复选框并追加 E2E 验证结果章节；Phase 3.4 commit `9557711` 收尾。
 
 ### Git Commits
 
@@ -468,7 +430,10 @@ API 层 10 场景全绿：分页 p1=50/p2=26/p3=0（total 76）、搜索 report=
 
 ### Testing
 
-- [OK] (Add test results)
+- [OK] API 层 e2e 10 场景全绿（curl + python：分页/搜索/中文/`%`_` 转义边界）
+- [OK] UI 层 e2e 5 验收点全绿（Chrome DevTools DOM 测量 translateY 恒 176px/overflow=0 + 真实交互）
+- [OK] 测试数据清理：73 png 删除、db(files/tags/tasks/file_tags) 归零、cache 清空、工作区 clean
+- ⚠️ admin 密码为登录验证已用 reset-password 重置为 `E2eVerify!2026`（原密码未知），需用户自行改回
 
 ### Status
 
