@@ -1,6 +1,9 @@
+use crate::core::tag::TagManager;
 use crate::infra::storage::StorageManager;
 use crate::models::db::{FileEntry, Library};
-use crate::models::dto::{FileDetail, FileItem, FileQuery, FileResponse, FileTagInfo};
+use crate::models::dto::{
+    AddTagRequest, FileDetail, FileItem, FileQuery, FileResponse, FileTagInfo,
+};
 use axum::{
     Json,
     body::Body,
@@ -13,7 +16,7 @@ use serde::Deserialize;
 use sqlx::SqlitePool;
 use tokio::fs::File;
 use tokio_util::io::ReaderStream;
-use tracing::error;
+use tracing::{error, info, warn};
 
 pub async fn list_files(
     State(pool): State<SqlitePool>,
@@ -512,12 +515,49 @@ pub async fn get_content(
     }
 }
 
+/// 查询文件的全部标签（含 `source`），按 category、name 排序。
+///
+/// 供 `get_file_detail` / `add_file_tag` / `remove_file_tag` 共用，
+/// 避免三处 JOIN 查询彼此漂移（参见 code-reuse-thinking-guide.md）。
+async fn fetch_file_tags(pool: &SqlitePool, file_id: i32) -> Result<Vec<FileTagInfo>, StatusCode> {
+    #[derive(sqlx::FromRow)]
+    struct TagRow {
+        id: i32,
+        name: String,
+        category: String,
+        source: String,
+    }
+    let rows = sqlx::query_as::<_, TagRow>(
+        r#"SELECT t.id, t.name, t.category, ft.source
+           FROM file_tags ft JOIN tags t ON ft.tag_id = t.id
+           WHERE ft.file_id = ?
+           ORDER BY t.category, t.name"#,
+    )
+    .bind(file_id)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| {
+        error!("查询文件标签失败 file_id={}: {}", file_id, e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok(rows
+        .into_iter()
+        .map(|r| FileTagInfo {
+            id: r.id,
+            name: r.name,
+            category: r.category,
+            source: r.source,
+        })
+        .collect())
+}
+
 /// 文件详情端点
 ///
 /// # 路由
 /// GET /api/v1/files/:id
 ///
-/// 返回完整元数据 + 该文件全部标签（按 category 分组展示）。
+/// 返回完整元数据 + 该文件全部标签（按 category 分组展示，含 source）。
 pub async fn get_file_detail(
     State(pool): State<SqlitePool>,
     Path(id): Path<i32>,
@@ -532,34 +572,7 @@ pub async fn get_file_detail(
         })?
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    #[derive(sqlx::FromRow)]
-    struct TagRow {
-        id: i32,
-        name: String,
-        category: String,
-    }
-    let rows = sqlx::query_as::<_, TagRow>(
-        r#"SELECT t.id, t.name, t.category
-           FROM file_tags ft JOIN tags t ON ft.tag_id = t.id
-           WHERE ft.file_id = ?
-           ORDER BY t.category, t.name"#,
-    )
-    .bind(id)
-    .fetch_all(&pool)
-    .await
-    .map_err(|e| {
-        error!("查询文件标签失败 file_id={}: {}", id, e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
-
-    let tags = rows
-        .into_iter()
-        .map(|r| FileTagInfo {
-            id: r.id,
-            name: r.name,
-            category: r.category,
-        })
-        .collect();
+    let tags = fetch_file_tags(&pool, id).await?;
 
     Ok(Json(FileDetail {
         id: file.id,
@@ -570,6 +583,256 @@ pub async fn get_file_detail(
         parent_path: file.parent_path,
         tags,
     }))
+}
+
+// ========== 手动标签写操作 ==========
+
+/// 单个标签名长度上限（按字符计）。
+const MAX_TAG_NAME_LEN: usize = 64;
+
+/// 解析「/」分隔的标签路径为有序段：trim 后过滤空段。
+///
+/// 返回 `Some(parts)` 当且仅当存在至少一个非空段，且每段长度 ≤ 上限、
+/// 不含控制字符；全空 / 超长 / 含非法字符返回 `None`（调用方映射为 400）。
+fn parse_tag_path(path: &str) -> Option<Vec<String>> {
+    let parts: Vec<String> = path
+        .split('/')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    if parts.is_empty() {
+        return None;
+    }
+    if parts
+        .iter()
+        .any(|s| s.chars().count() > MAX_TAG_NAME_LEN || s.chars().any(|c| c.is_control()))
+    {
+        return None;
+    }
+    Some(parts)
+}
+
+/// 确认文件存在且在线（status=1）；不存在返回 404。
+async fn ensure_file_exists(pool: &SqlitePool, file_id: i32) -> Result<(), StatusCode> {
+    let exists: Option<(i32,)> = sqlx::query_as("SELECT id FROM files WHERE id = ? AND status = 1")
+        .bind(file_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| {
+            error!("查询文件存在性失败 file_id={}: {}", file_id, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    if exists.is_none() {
+        warn!("文件不存在或已离线: file_id={}", file_id);
+        return Err(StatusCode::NOT_FOUND);
+    }
+    Ok(())
+}
+
+/// 按 `parts` 逐层建/复用 `category='user'` 标签节点，返回叶子 id。
+///
+/// 复用 [`TagManager::ensure_tag`]（SELECT-then-INSERT，正确处理 NULL parent_id 的 UNIQUE 语义）。
+async fn ensure_user_tag_path(pool: &SqlitePool, parts: &[String]) -> Result<i32, StatusCode> {
+    let tm = TagManager::new(pool.clone());
+    let mut parent: Option<i32> = None;
+    for part in parts {
+        parent = Some(tm.ensure_tag(part, "user", parent).await.map_err(|e| {
+            error!("建 user 标签失败 part={}: {}", part, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?);
+    }
+    Ok(parent.expect("parse_tag_path 已保证 parts 非空"))
+}
+
+/// 删除无引用且无子节点的 `user` 标签，并向上递归清理因之变空的祖先。
+///
+/// 仅清理 `user` 类别（path/type/time 由扫描器管理，不在此处理）。
+/// best-effort：任何查询/删除失败记 error 后退出循环，不影响已删除的关联。
+async fn cleanup_orphan_user_tag(pool: &SqlitePool, mut tag_id: i32) {
+    loop {
+        #[derive(sqlx::FromRow)]
+        struct NodeRow {
+            category: String,
+            parent_id: Option<i32>,
+        }
+        let node =
+            match sqlx::query_as::<_, NodeRow>("SELECT category, parent_id FROM tags WHERE id = ?")
+                .bind(tag_id)
+                .fetch_optional(pool)
+                .await
+            {
+                Ok(n) => n,
+                Err(e) => {
+                    error!("清理孤儿标签查询失败 tag_id={}: {}", tag_id, e);
+                    break;
+                }
+            };
+        let Some(node) = node else { break };
+        if node.category != "user" {
+            break;
+        }
+
+        // 仍被文件引用或有子节点 → 不是孤儿，停止向上清理。
+        // unwrap_or(1) 非 panic：查询失败时保守视为「仍有引用」，停止清理（降级安全）。
+        let refs: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM file_tags WHERE tag_id = ?")
+            .bind(tag_id)
+            .fetch_one(pool)
+            .await
+            .unwrap_or(1);
+        let kids: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tags WHERE parent_id = ?")
+            .bind(tag_id)
+            .fetch_one(pool)
+            .await
+            .unwrap_or(1);
+        if refs > 0 || kids > 0 {
+            break;
+        }
+
+        let parent = node.parent_id;
+        if let Err(e) = sqlx::query("DELETE FROM tags WHERE id = ?")
+            .bind(tag_id)
+            .execute(pool)
+            .await
+        {
+            error!("删除空 user 标签失败 tag_id={}: {}", tag_id, e);
+            break;
+        }
+        info!("自动清理空 user 标签: tag_id={}", tag_id);
+
+        match parent {
+            Some(pid) => tag_id = pid,
+            None => break,
+        }
+    }
+}
+
+/// 移除文件的手动标签关联：校验来源为 `manual`（auto 返回 403），关联不存在返回 404。
+///
+/// 不做自动清理（由调用方按需触发 [`cleanup_orphan_user_tag`]）。
+async fn remove_manual_link(
+    pool: &SqlitePool,
+    file_id: i32,
+    tag_id: i32,
+) -> Result<(), StatusCode> {
+    #[derive(sqlx::FromRow)]
+    struct LinkRow {
+        source: String,
+    }
+    let link = sqlx::query_as::<_, LinkRow>(
+        "SELECT source FROM file_tags WHERE file_id = ? AND tag_id = ?",
+    )
+    .bind(file_id)
+    .bind(tag_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| {
+        error!(
+            "查询标签关联失败 file_id={} tag_id={}: {}",
+            file_id, tag_id, e
+        );
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    match link {
+        None => {
+            warn!(
+                "移除标签失败：关联不存在 file_id={} tag_id={}",
+                file_id, tag_id
+            );
+            Err(StatusCode::NOT_FOUND)
+        }
+        Some(r) if r.source != "manual" => {
+            warn!(
+                "移除标签失败：自动标签不可删 file_id={} tag_id={}",
+                file_id, tag_id
+            );
+            Err(StatusCode::FORBIDDEN)
+        }
+        Some(_) => {
+            sqlx::query("DELETE FROM file_tags WHERE file_id = ? AND tag_id = ?")
+                .bind(file_id)
+                .bind(tag_id)
+                .execute(pool)
+                .await
+                .map_err(|e| {
+                    error!(
+                        "删除标签关联失败 file_id={} tag_id={}: {}",
+                        file_id, tag_id, e
+                    );
+                    StatusCode::INTERNAL_SERVER_ERROR
+                })?;
+            Ok(())
+        }
+    }
+}
+
+/// 添加手动标签
+///
+/// # 路由
+/// POST /api/v1/files/:id/tags
+///
+/// # 请求体
+/// `{ "path": "项目/TagFlow" }` —— `/` 分隔层级，逐层建/复用 user 节点。
+///
+/// # 成功响应 (200)
+/// 返回该文件更新后的全部标签列表（含 source）。
+///
+/// # 失败响应
+/// - 400: path 为空 / 含超长或非法段
+/// - 404: 文件不存在或离线
+/// - 500: 数据库错误
+pub async fn add_file_tag(
+    State(pool): State<SqlitePool>,
+    Path(id): Path<i32>,
+    Json(payload): Json<AddTagRequest>,
+) -> Result<Json<Vec<FileTagInfo>>, StatusCode> {
+    let Some(parts) = parse_tag_path(&payload.path) else {
+        warn!(
+            "添加标签失败：路径为空或非法 file_id={} path={:?}",
+            id, payload.path
+        );
+        return Err(StatusCode::BAD_REQUEST);
+    };
+
+    ensure_file_exists(&pool, id).await?;
+    let leaf = ensure_user_tag_path(&pool, &parts).await?;
+
+    // 挂载 manual 关联（INSERT OR IGNORE，已存在则幂等）
+    TagManager::new(pool.clone())
+        .link_file_to_tag(id, leaf, "manual")
+        .await
+        .map_err(|e| {
+            error!("挂载标签失败 file_id={} tag_id={}: {}", id, leaf, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    info!("添加手动标签: file_id={}, path={}", id, payload.path);
+
+    Ok(Json(fetch_file_tags(&pool, id).await?))
+}
+
+/// 移除手动标签
+///
+/// # 路由
+/// DELETE /api/v1/files/:id/tags/:tag_id
+///
+/// # 成功响应 (200)
+/// 返回该文件更新后的全部标签列表（含 source）。
+///
+/// # 失败响应
+/// - 403: 该关联为自动标签（source=auto），受保护不可手动删除
+/// - 404: 文件或关联不存在
+/// - 500: 数据库错误
+pub async fn remove_file_tag(
+    State(pool): State<SqlitePool>,
+    Path((id, tag_id)): Path<(i32, i32)>,
+) -> Result<Json<Vec<FileTagInfo>>, StatusCode> {
+    ensure_file_exists(&pool, id).await?;
+    remove_manual_link(&pool, id, tag_id).await?;
+    info!("移除手动标签: file_id={} tag_id={}", id, tag_id);
+    // 删除关联后，向上递归清理空 user 节点（best-effort）
+    cleanup_orphan_user_tag(&pool, tag_id).await;
+    Ok(Json(fetch_file_tags(&pool, id).await?))
 }
 
 #[cfg(test)]
@@ -627,14 +890,18 @@ mod tests {
     }
 
     async fn link(pool: &SqlitePool, file_id: i32, tag_id: i32) {
-        sqlx::query(
-            "INSERT OR IGNORE INTO file_tags (file_id, tag_id, source) VALUES (?, ?, 'auto')",
-        )
-        .bind(file_id)
-        .bind(tag_id)
-        .execute(pool)
-        .await
-        .unwrap();
+        link_with_source(pool, file_id, tag_id, "auto").await;
+    }
+
+    /// 以指定来源挂载关联（auto/manual）；`link` 是 `source="auto"` 的快捷。
+    async fn link_with_source(pool: &SqlitePool, file_id: i32, tag_id: i32, source: &str) {
+        sqlx::query("INSERT OR IGNORE INTO file_tags (file_id, tag_id, source) VALUES (?, ?, ?)")
+            .bind(file_id)
+            .bind(tag_id)
+            .bind(source)
+            .execute(pool)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -778,5 +1045,152 @@ mod tests {
         assert!(!s.contains('\r'));
         // 中文应被百分号编码，整串 ASCII 合法
         assert!(s.is_ascii());
+    }
+
+    // ========== 手动标签：parse_tag_path ==========
+
+    #[test]
+    fn parse_tag_path_splits_and_filters_empty_segments() {
+        assert_eq!(parse_tag_path("a/b"), Some(vec!["a".into(), "b".into()]));
+        // 前导/末尾/连续「/」与空白：空段被过滤
+        assert_eq!(
+            parse_tag_path(" a /// b "),
+            Some(vec!["a".into(), "b".into()])
+        );
+        // 单段
+        assert_eq!(parse_tag_path("收藏"), Some(vec!["收藏".into()]));
+        // 全空
+        assert_eq!(parse_tag_path(""), None);
+        assert_eq!(parse_tag_path("   "), None);
+        assert_eq!(parse_tag_path("/"), None);
+        assert_eq!(parse_tag_path("///"), None);
+        // 恰好上限通过，超长拒绝
+        assert_eq!(parse_tag_path(&"x".repeat(64)), Some(vec!["x".repeat(64)]));
+        assert_eq!(parse_tag_path(&"x".repeat(65)), None);
+    }
+
+    // ========== 手动标签：建层级 + 挂载 ==========
+
+    #[tokio::test]
+    async fn ensure_user_tag_path_builds_hierarchy() {
+        let pool = setup_db().await;
+        let leaf = ensure_user_tag_path(&pool, &parse_tag_path("项目/TagFlow").unwrap())
+            .await
+            .unwrap();
+        // 项目(parent=NULL) → TagFlow，两个 user 节点
+        let user_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tags WHERE category='user'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(user_count, 2);
+        // TagFlow 的父应存在（指向「项目」）
+        let parent_id: Option<i32> = sqlx::query_scalar("SELECT parent_id FROM tags WHERE id = ?")
+            .bind(leaf)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert!(parent_id.is_some());
+    }
+
+    #[tokio::test]
+    async fn ensure_user_tag_path_reuses_existing_nodes() {
+        let pool = setup_db().await;
+        let parts = parse_tag_path("项目/TagFlow").unwrap();
+        let leaf1 = ensure_user_tag_path(&pool, &parts).await.unwrap();
+        // 同路径二次建：叶子 id 不变，不产生重复节点
+        let leaf2 = ensure_user_tag_path(&pool, &parts).await.unwrap();
+        assert_eq!(leaf1, leaf2);
+        let user_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tags WHERE category='user'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(user_count, 2);
+    }
+
+    #[tokio::test]
+    async fn add_manual_tag_links_with_manual_source() {
+        let pool = setup_db().await;
+        let f = insert_file(&pool, "a.txt").await;
+        let leaf = ensure_user_tag_path(&pool, &parse_tag_path("项目/TagFlow").unwrap())
+            .await
+            .unwrap();
+        TagManager::new(pool.clone())
+            .link_file_to_tag(f, leaf, "manual")
+            .await
+            .unwrap();
+
+        let tags = fetch_file_tags(&pool, f).await.unwrap();
+        assert_eq!(tags.len(), 1);
+        assert_eq!(tags[0].name, "TagFlow");
+        assert_eq!(tags[0].category, "user");
+        assert_eq!(tags[0].source, "manual");
+    }
+
+    // ========== 手动标签：移除 + 自动清理 ==========
+
+    #[tokio::test]
+    async fn remove_manual_link_rejects_auto_and_missing() {
+        let pool = setup_db().await;
+        let f = insert_file(&pool, "a.txt").await;
+        // auto 关联（用 ext 标签模拟扫描器打的自动标签）
+        let auto_tag = insert_tag(&pool, "txt", "ext", None).await;
+        link(&pool, f, auto_tag).await; // source='auto'
+
+        // auto 不可删 → 403
+        assert_eq!(
+            remove_manual_link(&pool, f, auto_tag).await,
+            Err(StatusCode::FORBIDDEN)
+        );
+        // 不存在的关联 → 404
+        assert_eq!(
+            remove_manual_link(&pool, f, 999_999).await,
+            Err(StatusCode::NOT_FOUND)
+        );
+    }
+
+    #[tokio::test]
+    async fn cleanup_keeps_node_with_other_refs_and_prunes_orphan_chain() {
+        let pool = setup_db().await;
+        let parts = parse_tag_path("项目/TagFlow").unwrap();
+        let leaf = ensure_user_tag_path(&pool, &parts).await.unwrap();
+        // 两个文件都挂到同一叶子
+        let f1 = insert_file(&pool, "a.txt").await;
+        let f2 = insert_file(&pool, "b.txt").await;
+        let tm = TagManager::new(pool.clone());
+        tm.link_file_to_tag(f1, leaf, "manual").await.unwrap();
+        tm.link_file_to_tag(f2, leaf, "manual").await.unwrap();
+
+        // 移除 f1 的关联：叶子仍有 f2 引用 → 不清理
+        remove_manual_link(&pool, f1, leaf).await.unwrap();
+        cleanup_orphan_user_tag(&pool, leaf).await;
+        let leaf_alive: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tags WHERE id = ?")
+            .bind(leaf)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(leaf_alive, 1);
+
+        // 再移除 f2 的关联：叶子无引用无子 → 删；父「项目」也无引用无子 → 递归删
+        remove_manual_link(&pool, f2, leaf).await.unwrap();
+        cleanup_orphan_user_tag(&pool, leaf).await;
+        let user_left: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tags WHERE category='user'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(user_left, 0); // 父子链全清
+    }
+
+    #[tokio::test]
+    async fn cleanup_does_not_touch_auto_categories() {
+        let pool = setup_db().await;
+        // ext 标签（非 user 类别）即使无引用也不应被清理
+        let ext_tag = insert_tag(&pool, "txt", "ext", None).await;
+        cleanup_orphan_user_tag(&pool, ext_tag).await;
+        let alive: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tags WHERE id = ?")
+            .bind(ext_tag)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(alive, 1);
     }
 }

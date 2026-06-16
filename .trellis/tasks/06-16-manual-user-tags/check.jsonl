@@ -1,0 +1,8 @@
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "审查清单：写 API 是否配单测、forbidden 模式是否触线、内联测试范式"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "校验：auto 标签删除是否正确拒绝、path 校验是否在 boundary、StatusCode 映射是否一致"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "校验 SQL 约定：sqlx 运行时查询、FK/CASCADE、自动清理递归逻辑无注入、无遗留空节点"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "vue-tsc 闸口、手动测试标准、forbidden 模式；本任务必须过 npm run build"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "审查 FileTagInfo.source 跨层类型一致性，DTO 镜像无 any、无类型漂移"}
+{"file": ".trellis/spec/frontend/hook-guidelines.md", "reason": "校验数据流仍为 API → store → view（本任务不引入 composables），FileDrawer 经 store 读写"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "审查 source 字段端到端流转完整、无断链（后端返回↔前端消费↔UI 显隐×）"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "审查是否复用既有标签查询/构建树逻辑，未重复造轮子"}

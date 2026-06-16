@@ -122,7 +122,35 @@ const TAG_STYLE: Record<string, string> = {
   user: 'bg-pink-50 text-pink-700',
 }
 const tagClass = (cat: string) => TAG_STYLE[cat] ?? 'bg-gray-100 text-gray-600'
-</script>
+
+// ===== 手动标签：添加 / 移除 =====
+const newTagPath = ref('')
+const tagAdding = ref(false)
+const tagError = ref('')
+
+async function addTag() {
+  const path = newTagPath.value.trim()
+  tagError.value = ''
+  if (!path || tagAdding.value) return
+  tagAdding.value = true
+  try {
+    await store.addTagToFile(path)
+    newTagPath.value = ''
+  } catch {
+    tagError.value = '添加失败：路径为空、非法或服务端错误'
+  } finally {
+    tagAdding.value = false
+  }
+}
+
+async function removeTag(tagId: number) {
+  tagError.value = ''
+  try {
+    await store.removeTagFromFile(tagId)
+  } catch {
+    tagError.value = '移除失败，请重试'
+  }
+}</script>
 
 <template>
   <Transition name="drawer">
@@ -156,16 +184,33 @@ const tagClass = (cat: string) => TAG_STYLE[cat] ?? 'bg-gray-100 text-gray-600'
             <div><span class="text-gray-400">修改：</span>{{ formatDate(detail.mtime) }}</div>
             <div><span class="text-gray-400">路径：</span><span class="truncate inline-block max-w-[16rem] align-bottom">{{ detail.parent_path || '/' }}</span></div>
           </div>
-          <div v-if="detail.tags?.length" class="flex flex-wrap gap-1.5 pt-1">
+          <div class="flex flex-wrap items-center gap-1.5 pt-1">
             <span
               v-for="t in detail.tags"
               :key="t.id"
-              class="px-2 py-0.5 rounded text-xs font-medium"
+              class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
               :class="tagClass(t.category)"
             >
               {{ t.category }}:{{ t.name }}
+              <!-- 仅手动标签可移除（source === 'manual'），自动标签受保护 -->
+              <button
+                v-if="t.source === 'manual'"
+                @click="removeTag(t.id)"
+                class="ml-1 -mr-0.5 opacity-50 hover:opacity-100 transition-opacity"
+                title="移除标签"
+              >
+                <X class="w-3 h-3" />
+              </button>
             </span>
+            <input
+              v-model="newTagPath"
+              @keydown.enter.prevent="addTag"
+              placeholder="添加标签 / 可用 / 分级"
+              :disabled="tagAdding"
+              class="px-2 py-0.5 text-xs rounded border border-dashed border-gray-300 focus:border-blue-400 focus:outline-none w-48"
+            />
           </div>
+          <p v-if="tagError" class="text-xs text-red-500 pt-1">{{ tagError }}</p>
         </div>
 
         <!-- 预览区 -->

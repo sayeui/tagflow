@@ -17,11 +17,13 @@ export interface FileItem {
   parent_path: string
 }
 
-/** 文件详情面板展示的单个标签（id + 名称 + 类别）。 */
+/** 文件详情面板展示的单个标签（id + 名称 + 类别 + 来源）。
+ *  source 区分 auto（扫描器自动）/ manual（用户手动），前端据此决定是否显示「×」移除按钮。 */
 export interface FileTagInfo {
   id: number
   name: string
   category: string
+  source: string
 }
 
 /** 文件详情（GET /api/v1/files/:id）：元数据 + 该文件全部标签。 */
@@ -151,6 +153,34 @@ export const useResourceStore = defineStore('resource', {
     closeFile() {
       this.selectedFileId = null
       this.fileDetail = null
+    },
+
+    /** 给当前文件添加手动标签，成功后更新抽屉标签列表并刷新侧栏标签树
+     *  （新 user 节点出现在「自定义」分区）。 */
+    async addTagToFile(path: string) {
+      if (this.selectedFileId === null) return
+      try {
+        const res = await fileApi.addTag(this.selectedFileId, path)
+        if (this.fileDetail) this.fileDetail.tags = res.data
+        await this.fetchTags()
+      } catch (error) {
+        console.error('Failed to add tag:', error)
+        throw error
+      }
+    },
+
+    /** 移除当前文件的手动标签，成功后更新抽屉标签列表并刷新侧栏
+     *  （无引用的空 user 节点会被后端自动清理而消失）。 */
+    async removeTagFromFile(tagId: number) {
+      if (this.selectedFileId === null) return
+      try {
+        const res = await fileApi.removeTag(this.selectedFileId, tagId)
+        if (this.fileDetail) this.fileDetail.tags = res.data
+        await this.fetchTags()
+      } catch (error) {
+        console.error('Failed to remove tag:', error)
+        throw error
+      }
     },
   },
 })

@@ -1,0 +1,13 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "后端写 API 总入口；本任务阶段 1 核心（新增 POST/DELETE 标签端点 + DTO 改造）"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "决定写标签 API 放 api/tag.rs 还是新建 api/file_tag.rs，以及路由如何 wire 到 main.rs"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "建层级（split('/') 逐层 SELECT/INSERT）、自动清理（向上递归查 COUNT）、INSERT OR IGNORE 复用——多条 sqlx 运行时查询必须符合约定"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "auto 标签拒绝删除→StatusCode 映射；path 校验（空/非法/超长）在 boundary 处理"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "写操作 info（打标签）、可预期错误 warn、DB 失败 error 的中文日志级别约定"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "新增写 API 必须配内存库单测（参照 api/file.rs 范式）；forbidden 模式清单"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "前端总入口；阶段 2 涉及 http.ts/store/FileDrawer 三处改动"}
+{"file": ".trellis/spec/frontend/directory-structure.md", "reason": "新增 fileApi 写方法、store actions、抽屉 UI 的落位与 @ alias 约定"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "options-style Pinia action 范式；addTagToFile/removeTagFromFile 操作后局部刷新 + fetchTags 的写法"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "FileDrawer 内输入框 + chip「×」的 script setup、typed emits、Tailwind-only 样式约定"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "FileTagInfo 加 source 字段的 DTO 镜像（后端 snake_case ↔ TS），严格 TS 无 any"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "source 字段从 DB → Rust DTO → TS 接口 → UI（决定是否显示×）跨层流转，是本任务关键数据缺口"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "写 API 返回更新后标签列表应复用 get_file_detail 的标签查询，避免重复实现"}

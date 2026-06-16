@@ -109,6 +109,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/v1/files/:id", get(api::file::get_file_detail))
         .route("/api/v1/files/:id/thumbnail", get(api::file::get_thumbnail))
         .route("/api/v1/files/:id/content", get(api::file::get_content))
+        .route("/api/v1/files/:id/tags", post(api::file::add_file_tag))
+        .route(
+            "/api/v1/files/:id/tags/:tag_id",
+            delete(api::file::remove_file_tag),
+        )
         .route(
             "/api/auth/update-password",
             post(api::auth::update_password),

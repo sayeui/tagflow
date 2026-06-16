@@ -108,6 +108,15 @@ export const fileApi = {
 
   /** 缩略图 URL（含 token，修复历史 401） */
   thumbnailUrl: (id: number) => mediaUrl(`/api/v1/files/${id}/thumbnail`),
+
+  /** 给文件添加手动标签。path 用「/」分隔层级（如「项目/TagFlow」），后端逐层建 user 节点；
+   *  返回更新后的标签列表（含 source）。 */
+  addTag: (id: number, path: string) =>
+    instance.post(`/v1/files/${id}/tags`, { path }),
+
+  /** 移除文件的手动标签关联；auto 标签后端返回 403。返回更新后的标签列表。 */
+  removeTag: (id: number, tagId: number) =>
+    instance.delete(`/v1/files/${id}/tags/${tagId}`),
 }
 
 export const libraryApi = {

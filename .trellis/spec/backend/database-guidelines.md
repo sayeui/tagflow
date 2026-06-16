@@ -92,3 +92,16 @@ fn deserialize_csv_i32<'de, D: serde::Deserializer<'de>>(de: D) -> Result<Vec<i3
 ```
 
 前端对应 `params.tag_ids.join(',')`（见 `tagflow-ui/src/api/http.ts` `fileApi.list`）。参考实现：`models/dto.rs` `FileQuery`、`api/file.rs` 多标签 AND 查询。
+
+---
+
+## 手动标签写操作（user category）
+
+用户手动标签（`tags.category='user'`）的创建与清理约定（`api/file.rs` `add_file_tag` / `remove_file_tag`）：
+
+- **层级路径**：请求体 `{ "path": "项目/TagFlow" }`，按 `/` 逐层 trim + 过滤空段，每段 `TagManager::ensure_tag(part, "user", parent)` 建/复用节点。复用其 SELECT-then-INSERT 是必需的——SQLite 把 NULL `parent_id` 视为 distinct，`UNIQUE(name, parent_id)` 拦不住多个根级同名标签，必须应用层先查后插。叶子 `INSERT OR IGNORE` 挂到文件（`source='manual'`）。
+- **校验在 boundary**：`parse_tag_path` 纯函数过滤空段、限单段 ≤ 64 字符、禁控制字符；空/非法 → 400。
+- **source 跨层**：`FileTagInfo` 带 `source`（`auto`/`manual`）端到端流转（DB → DTO → TS），前端据此决定 chip 是否显示「×」移除按钮。**删除仅允许 `manual`**；`auto` 关联 `DELETE` 返回 **403**（受保护，扫描器管理），关联不存在返回 **404**。
+- **自动清理（best-effort）**：删除 manual 关联后，`cleanup_orphan_user_tag` 从叶子向上递归——当某 user 节点 `COUNT(file_tags)=0` 且 `COUNT(子节点)=0` 时删除，并对其 `parent_id` 继续判断，清空整条空链。**仅清理 `user` 类别**（path/type/time 由扫描器管理，不在此处理）；非关键路径，查询/删除失败记 error 后退出循环（`unwrap_or(1)` 保守视为「仍有引用」停止清理，非 panic）。
+
+参考实现：`api/file.rs` `add_file_tag` / `remove_file_tag` / `cleanup_orphan_user_tag` / `ensure_user_tag_path` / `parse_tag_path`；单测覆盖建层级/复用/auto 拒绝/自动清理父子链/不碰 auto 类别。

@@ -26,12 +26,16 @@ pub struct FileItem {
     pub parent_path: String,
 }
 
-/// 文件详情面板展示的单个标签信息（id + 名称 + 类别）。
+/// 文件详情面板展示的单个标签信息（id + 名称 + 类别 + 来源）。
+///
+/// `source` 区分 `auto`（扫描器自动打）/ `manual`（用户手动打），
+/// 前端据此决定是否在 chip 上显示「×」移除按钮（仅 manual 可移除）。
 #[derive(Serialize, Debug)]
 pub struct FileTagInfo {
     pub id: i32,
     pub name: String,
     pub category: String,
+    pub source: String,
 }
 
 /// 文件详情（`GET /api/v1/files/:id`）：完整元数据 + 该文件的全部标签。
@@ -46,6 +50,15 @@ pub struct FileDetail {
     pub mtime: i64,
     pub parent_path: String,
     pub tags: Vec<FileTagInfo>,
+}
+
+/// 添加手动标签请求体（`POST /api/v1/files/:id/tags`）。
+///
+/// `path` 用 `/` 分隔层级（如 `"项目/TagFlow"`），后端按段逐层建/复用
+/// `category='user'` 节点，叶子挂到文件（`source='manual'`）。
+#[derive(Deserialize, Debug)]
+pub struct AddTagRequest {
+    pub path: String,
 }
 
 #[derive(Deserialize, Debug)]
