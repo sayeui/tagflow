@@ -8,30 +8,7 @@
 [![Vue](https://img.shields.io/badge/vue-3.5%2B-green.svg)](https://vuejs.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-[![AI Powered](https://img.shields.io/badge/AI%20Developed-Claude%20Code%20%7C%20Gemini%203-purple.svg)](https://claude.ai/code)
-
 </div>
-
----
-
-## 🤖 AI 辅助开发声明
-
-**本项目主要使用 AI 工具进行开发**，是一个展示 AI 辅助软件开发能力的实验性项目。
-
-### 使用的 AI 工具
-
-| 工具 | 用途 |
-|------|------|
-| **Claude Code** | 主要开发助手，负责代码编写、架构设计、问题诊断 |
-| **Gemini 3.0 (Flash Thinking)** | 产品蓝图设计、技术方案评审、复杂问题分析 |
-| **GLM-4.7** | Claude Code使用的底层大模型 |
-
-### 开发模式
-
-- **指令驱动开发** - 通过自然语言描述需求，AI 生成实现代码
-- **迭代式完善** - AI 与用户多轮对话，持续优化代码质量
-- **跨工具协作** - 多个 AI 工具协同工作，确保代码准确性和可靠性
-- **人类监督** - 关键决策由人类开发者确认，AI 负责实现细节
 
 ---
 
@@ -195,7 +172,7 @@ tagflow/
 │   ├── API文档.md
 │   ├── TagFlow 系统详细设计规格说明书.md
 │   └── 开发阶段/             # Milestone 详细计划
-├── CLAUDE.md                 # Claude Code 工作指南
+├── CLAUDE.md                 # AI 协作开发约定
 └── README.md
 ```
 
@@ -278,21 +255,63 @@ PathTagger 解析
 
 ---
 
+## 功能清单
+
+按子系统组织，标注当前状态：✅ 已实现 · 🔄 进行中 · 📅 计划中
+
+| 子系统 | 能力 | 状态 |
+|--------|------|------|
+| **资源库管理** | 本地资源库 CRUD、连接测试、扫描触发（同库并发返回 409 防护） | ✅ |
+|  | WebDAV 资源库（OpenDAL + 凭据加密） | 📅 |
+| **文件扫描** | 增量扫描、基于哈希的文件移动检测、扫描时为媒体文件入列缩略图任务 | ✅ |
+|  | 定时增量扫描（后台自动同步） | 📅 |
+| **标签系统** | 层级标签树、路径自动建标签、`path` / `type` / `ext` / `time` 四维自动标签 | ✅ |
+|  | 多标签 AND 分面过滤、递归包含子标签子树 | ✅ |
+|  | 手动用户标签（user tag）打标签 / 移除 / 空节点自动清理 | ✅ |
+|  | 批量打标签（多选 → 批量加 / 移除） | 📅 |
+| **浏览与预览** | 虚拟滚动卡片网格、文件详情、FFmpeg 缩略图 | ✅ |
+|  | 媒体预览抽屉（文本 / Markdown / PDF / 图片 / 视频 / 音频 + 下载） | ✅ |
+|  | 文件名搜索、卡片 / 列表视图切换、无限滚动加载、卡片重叠修复 | 🔄 |
+| **认证与安全** | JWT 会话、Argon2 密码哈希、密码修改 / 重置工具 | ✅ |
+|  | 路径存在性校验、密码门槛前后端统一（≥ 12 字节）、媒体 `?token=` 鉴权兜底 | ✅ |
+| **部署与运维** | rust-embed 单二进制、Docker / compose、`/api/health` 健康检查 | ✅ |
+
+---
+
 ## 开发路线图
 
 | 里程碑 | 内容 | 状态 |
 |--------|------|------|
-| **Milestone 1** | 项目初始化与数据库模型建立 | ✅ 完成 |
-| **Milestone 2** | 增量扫描引擎 + OpenDAL 集成 | ✅ 完成 |
-| **Milestone 3** | 层级标签引擎实现 | ✅ 完成 |
-| **Milestone 4** | API 层与虚拟滚动查询实现 | ✅ 完成 |
-| **Milestone 5** | Vue 3 前端 + 虚拟滚动组件 | ✅ 完成 |
-| **Milestone 6** | 认证模块实现（JWT + Argon2 + 登录 API） | ✅ 完成 |
-| **Milestone 6-1** | 认证 UI 与安全设置（登录页 + 路由守卫 + 密码管理） | ✅ 完成 |
-| **Milestone 7** | 存储管理模块实现（动态资源库管理） | ✅ 完成 |
-| **Milestone 8** | 异步任务流水线 + 缩略图生成 | ✅ 完成 |
-| **Milestone 9-1** | rust-embed 嵌入前端 + DB/cache 路径配置化 | ✅ 完成 |
-| **Milestone 9-2** | Docker 化（多阶段 Dockerfile + compose + 部署文档） | ✅ 完成 |
+| **Milestone 1** | 项目初始化与数据库模型建立 | ✅ |
+| **Milestone 2** | 增量扫描引擎 + OpenDAL 集成 | ✅ |
+| **Milestone 3** | 层级标签引擎实现 | ✅ |
+| **Milestone 4** | API 层与虚拟滚动查询实现 | ✅ |
+| **Milestone 5** | Vue 3 前端 + 虚拟滚动组件 | ✅ |
+| **Milestone 6** | 认证模块实现（JWT + Argon2） | ✅ |
+| **Milestone 6-1** | 认证 UI 与安全设置 | ✅ |
+| **Milestone 7** | 存储管理模块（动态资源库） | ✅ |
+| **Milestone 8** | 异步任务流水线 + 缩略图生成 | ✅ |
+| **Milestone 9-1** | rust-embed 嵌入前端 + DB/cache 路径配置化 | ✅ |
+| **Milestone 9-2** | Docker 化（多阶段 Dockerfile + compose + 部署文档） | ✅ |
+| **v0.1.0 Beta** | 首次预发布（Pre-release）：自动标签三维度 + 多标签分面过滤、媒体预览抽屉、安全加固 | ✅ |
+| **v0.2.0 Beta** | 多源接入与自动同步（WebDAV 资源库 + 定时增量扫描） | 📅 |
+
+> v0.1.0 Beta 发布后持续迭代：**手动用户标签**已交付（✅），**文件视图增强**（无限滚动 / 文件名搜索 / 列表视图）进行中（🔄）。详见[功能清单](#功能清单)。
+
+### 后续迭代计划
+
+**v0.2.0 Beta —— 多源接入与自动同步**（下一个里程碑）
+
+- **WebDAV 资源库** —— OpenDAL `services-webdav` + AES 凭据加密，接入 NAS / 云盘
+- **定时增量扫描** —— 后台定时任务自动增量扫描资源库，文件变更无需手动触发
+
+> 目标闭环：接入 WebDAV 库 → 自动定时同步 → 标签 / 浏览 / 预览全部可用。
+
+**更远的迭代（v0.3.0+）**
+
+- 批量打标签 —— 多选文件批量加 / 移除标签
+- 正文全文搜索 —— SQLite FTS5 索引文件内容（文件名搜索已在视图增强中提供）
+- 元数据深化 —— EXIF / 视频元信息、排序切换等进阶能力
 
 ---
 
@@ -358,8 +377,6 @@ PathTagger 解析
 
 <div align="center">
 
-**Made with ❤️ with AI Assistance - Claude Code（GLM 4.7） & Gemini**
-
-**🤖 Primarily AI-Generated Code**
+_轻量、非侵入、层级标签的多源资源管理_
 
 </div>
