@@ -141,14 +141,10 @@ async fn query_files_by_tags_recursive(
     for id in tag_ids {
         q = q.bind(id);
     }
-    let total = q
-        .bind(n)
-        .fetch_one(pool)
-        .await
-        .map_err(|e| {
-            error!("多标签递归计数失败: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let total = q.bind(n).fetch_one(pool).await.map_err(|e| {
+        error!("多标签递归计数失败: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     Ok((items, total))
 }
@@ -205,14 +201,10 @@ async fn query_files_by_tags_direct(
     for id in tag_ids {
         q = q.bind(id);
     }
-    let total = q
-        .bind(n)
-        .fetch_one(pool)
-        .await
-        .map_err(|e| {
-            error!("多标签直接计数失败: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let total = q.bind(n).fetch_one(pool).await.map_err(|e| {
+        error!("多标签直接计数失败: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     Ok((items, total))
 }
@@ -295,10 +287,41 @@ fn is_text_extension(extension: &Option<String>) -> bool {
             .as_deref()
             .map(|e| e.to_ascii_lowercase())
             .as_deref(),
-        Some("txt" | "md" | "markdown" | "log" | "csv" | "tsv" | "json" | "xml" | "html" | "htm"
-            | "yaml" | "yml" | "ini" | "conf" | "toml" | "js" | "ts" | "css" | "scss"
-            | "py" | "rs" | "go" | "java" | "c" | "cpp" | "h" | "hpp" | "sh" | "bat"
-            | "sql" | "vue" | "srt" | "vtt")
+        Some(
+            "txt"
+                | "md"
+                | "markdown"
+                | "log"
+                | "csv"
+                | "tsv"
+                | "json"
+                | "xml"
+                | "html"
+                | "htm"
+                | "yaml"
+                | "yml"
+                | "ini"
+                | "conf"
+                | "toml"
+                | "js"
+                | "ts"
+                | "css"
+                | "scss"
+                | "py"
+                | "rs"
+                | "go"
+                | "java"
+                | "c"
+                | "cpp"
+                | "h"
+                | "hpp"
+                | "sh"
+                | "bat"
+                | "sql"
+                | "vue"
+                | "srt"
+                | "vtt"
+        )
     )
 }
 
@@ -414,21 +437,20 @@ pub async fn get_content(
 
     // 4. 文本类：全量读 + 转码
     if is_text_extension(&file.extension) {
-        let bytes = op
-            .read(&rel_path)
-            .await
-            .map_err(|e| {
-                error!("读取文本失败 path={}: {}", rel_path, e);
-                StatusCode::INTERNAL_SERVER_ERROR
-            })?;
+        let bytes = op.read(&rel_path).await.map_err(|e| {
+            error!("读取文本失败 path={}: {}", rel_path, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
         let body = Body::from(decode_text(bytes.to_vec()));
         let mut builder = Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "text/plain; charset=utf-8")
             .header(header::ACCEPT_RANGES, "bytes");
         if is_download {
-            builder =
-                builder.header(header::CONTENT_DISPOSITION, download_disposition(&file.filename));
+            builder = builder.header(
+                header::CONTENT_DISPOSITION,
+                download_disposition(&file.filename),
+            );
         }
         return Ok(builder.body(body).unwrap());
     }
@@ -444,7 +466,10 @@ pub async fn get_content(
         .header(header::CONTENT_TYPE, content_type)
         .header(header::ACCEPT_RANGES, "bytes");
     if is_download {
-        builder = builder.header(header::CONTENT_DISPOSITION, download_disposition(&file.filename));
+        builder = builder.header(
+            header::CONTENT_DISPOSITION,
+            download_disposition(&file.filename),
+        );
     }
 
     match range {
@@ -474,13 +499,10 @@ pub async fn get_content(
         }
         None => {
             // 无 Range：全量读（图片等小文件路径；大视频浏览器会带 Range）
-            let bytes = op
-                .read(&rel_path)
-                .await
-                .map_err(|e| {
-                    error!("读取文件失败 path={}: {}", rel_path, e);
-                    StatusCode::INTERNAL_SERVER_ERROR
-                })?;
+            let bytes = op.read(&rel_path).await.map_err(|e| {
+                error!("读取文件失败 path={}: {}", rel_path, e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
             builder
                 .status(StatusCode::OK)
                 .header(header::CONTENT_LENGTH, bytes.len().to_string())
@@ -605,12 +627,14 @@ mod tests {
     }
 
     async fn link(pool: &SqlitePool, file_id: i32, tag_id: i32) {
-        sqlx::query("INSERT OR IGNORE INTO file_tags (file_id, tag_id, source) VALUES (?, ?, 'auto')")
-            .bind(file_id)
-            .bind(tag_id)
-            .execute(pool)
-            .await
-            .unwrap();
+        sqlx::query(
+            "INSERT OR IGNORE INTO file_tags (file_id, tag_id, source) VALUES (?, ?, 'auto')",
+        )
+        .bind(file_id)
+        .bind(tag_id)
+        .execute(pool)
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
@@ -628,7 +652,9 @@ mod tests {
         insert_file(&pool, "c.txt").await;
 
         // 查 year：递归应命中挂在 month 上的两个文件
-        let (items, total) = query_files_by_tags_recursive(&pool, &[year], 50, 0).await.unwrap();
+        let (items, total) = query_files_by_tags_recursive(&pool, &[year], 50, 0)
+            .await
+            .unwrap();
         assert_eq!(total, 2);
         assert_eq!(items.len(), 2);
     }
@@ -653,12 +679,16 @@ mod tests {
         link(&pool, f3, text).await;
 
         // txt AND text → 只有 f1
-        let (items, total) = query_files_by_tags_direct(&pool, &[txt, text], 50, 0).await.unwrap();
+        let (items, total) = query_files_by_tags_direct(&pool, &[txt, text], 50, 0)
+            .await
+            .unwrap();
         assert_eq!(total, 1);
         assert_eq!(items[0].filename, "a.txt");
 
         // 单个 text → f1, f3
-        let (_, total) = query_files_by_tags_direct(&pool, &[text], 50, 0).await.unwrap();
+        let (_, total) = query_files_by_tags_direct(&pool, &[text], 50, 0)
+            .await
+            .unwrap();
         assert_eq!(total, 2);
     }
 
@@ -671,7 +701,9 @@ mod tests {
         link(&pool, f1, txt).await;
 
         // txt AND mp4 → 空（没有任何文件同时命中）
-        let (items, total) = query_files_by_tags_direct(&pool, &[txt, mp4], 50, 0).await.unwrap();
+        let (items, total) = query_files_by_tags_direct(&pool, &[txt, mp4], 50, 0)
+            .await
+            .unwrap();
         assert_eq!(total, 0);
         assert!(items.is_empty());
     }

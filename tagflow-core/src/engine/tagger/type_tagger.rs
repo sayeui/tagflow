@@ -21,10 +21,7 @@ impl TypeTagger {
             return Ok(());
         };
 
-        let tag_id = self
-            .tag_manager
-            .ensure_tag(type_name, "type", None)
-            .await?;
+        let tag_id = self.tag_manager.ensure_tag(type_name, "type", None).await?;
         self.tag_manager
             .link_file_to_tag(file_id, tag_id, "auto")
             .await?;

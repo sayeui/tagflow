@@ -26,11 +26,10 @@ pub async fn run_if_needed(db: &SqlitePool) -> anyhow::Result<()> {
     info!("tagger 版本落后 ({current} < {CURRENT_TAGGER_VERSION})，开始回填存量标签...");
 
     // 流式拉取存量文件元数据（避免大库一次性 load 全表）
-    let rows: Vec<(i32, String, Option<String>, i64)> = sqlx::query_as(
-        "SELECT id, parent_path, extension, mtime FROM files WHERE status = 1",
-    )
-    .fetch_all(db)
-    .await?;
+    let rows: Vec<(i32, String, Option<String>, i64)> =
+        sqlx::query_as("SELECT id, parent_path, extension, mtime FROM files WHERE status = 1")
+            .fetch_all(db)
+            .await?;
 
     let total = rows.len();
     info!("待回填文件数: {total}");
@@ -53,11 +52,10 @@ pub async fn run_if_needed(db: &SqlitePool) -> anyhow::Result<()> {
 }
 
 async fn read_version(db: &SqlitePool) -> anyhow::Result<i64> {
-    let row: Option<(String,)> =
-        sqlx::query_as("SELECT value FROM app_meta WHERE key = ?")
-            .bind(VERSION_KEY)
-            .fetch_optional(db)
-            .await?;
+    let row: Option<(String,)> = sqlx::query_as("SELECT value FROM app_meta WHERE key = ?")
+        .bind(VERSION_KEY)
+        .fetch_optional(db)
+        .await?;
     let v = row
         .map(|(v,)| v)
         .unwrap_or_else(|| "0".to_string())
@@ -88,7 +86,10 @@ mod tests {
             .connect("sqlite::memory:")
             .await
             .unwrap();
-        sqlx::query("PRAGMA foreign_keys = ON").execute(&pool).await.unwrap();
+        sqlx::query("PRAGMA foreign_keys = ON")
+            .execute(&pool)
+            .await
+            .unwrap();
         for stmt in [
             "CREATE TABLE app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
             "CREATE TABLE tags (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, category TEXT NOT NULL, parent_id INTEGER REFERENCES tags(id) ON DELETE CASCADE, UNIQUE(name, parent_id))",
@@ -129,29 +130,38 @@ mod tests {
         assert_eq!(read_version(&pool).await.unwrap(), CURRENT_TAGGER_VERSION);
 
         // 应生成 ext:txt、type:text 标签并关联
-        let ext_count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM tags WHERE category = 'ext' AND name = 'txt'",
-        )
-        .fetch_one(&pool).await.unwrap();
+        let ext_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM tags WHERE category = 'ext' AND name = 'txt'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         assert_eq!(ext_count, 1);
         let type_count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM tags WHERE category = 'type' AND name = 'text'",
         )
-        .fetch_one(&pool).await.unwrap();
+        .fetch_one(&pool)
+        .await
+        .unwrap();
         assert_eq!(type_count, 1);
         // 应生成 time 标签（year + month）
         let time_count: i64 =
             sqlx::query_scalar("SELECT COUNT(*) FROM tags WHERE category = 'time'")
-                .fetch_one(&pool).await.unwrap();
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         assert!(time_count >= 2, "至少应有 year + month 两个 time 标签");
 
         // 第二次运行应跳过（版本已是最新）
         // 用文件无新增来间接验证：tag 数量不变
-        let tags_before: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM tags").fetch_one(&pool).await.unwrap();
+        let tags_before: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tags")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
         run_if_needed(&pool).await.unwrap();
-        let tags_after: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM tags").fetch_one(&pool).await.unwrap();
+        let tags_after: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tags")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
         assert_eq!(tags_before, tags_after, "幂等：第二次运行不应新增标签");
     }
 }

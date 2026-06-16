@@ -49,7 +49,7 @@ pub async fn run_all(
         .process(file_id, extension)
         .await?;
     TimeTagger::new(tag_manager.clone())
-        .process(file_id, mtime).await?;
+        .process(file_id, mtime)
+        .await?;
     Ok(())
 }
-
