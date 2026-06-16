@@ -306,3 +306,37 @@ NAS 部署核对发现自动标签引擎只有 path 一维、无多标签过滤�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 10: 技术债清理：密码文案/路径校验/扫描死代码
+
+**Date**: 2026-06-16
+**Task**: 技术债清理：密码文案/路径校验/扫描死代码
+**Branch**: `main`
+
+### Summary
+
+制定迭代计划(V1手动标签/V2文件操作/V3全文搜索/V4 WebDAV/V5元数据深化 + 技术债批次)，用户选先清技术债。核实三条已记录债：(1) Security.vue 密码前端6位 vs 后端≥12——发现 update_password 后端完全无长度校验；(2) create_library 不校验路径存在导致 OpenDAL 自动建幽灵空库；(3) Libraries.vue 501死代码+409无区分。brainstorm 收敛两决策：前后端统一≥12字节、路径不存在拒绝400。trellis-implement 实现+抽取 validate_local_path_readable 供 create/test_connection 共用消除重复；trellis-check PASS 并 self-fix 1处重复 warn 日志。顺手全局 cargo fmt 格式化上阶段遗留(file.rs/backfill.rs/tagger，逐行确认纯折行无逻辑)。e2e 实测三路径全绿：update_password 5字节→400/12字节→200、create_library 不存在路径→400、大库并发scan→409(扫完恢复→202)。拆 chore(fmt)+feat 两 commit。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b0867d8` | (see git log) |
+| `2e9b977` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

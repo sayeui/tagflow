@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 9
+- **Total Sessions**: 10
 - **Last Active**: 2026-06-16
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~308 | Active |
+| `journal-1.md` | ~342 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 10 | 2026-06-16 | 技术债清理：密码文案/路径校验/扫描死代码 | `b0867d8`, `2e9b977` | `main` |
 | 9 | 2026-06-16 | 媒体预览抽屉：文件详情 + 多类型预览 + 下载 | `7415c62` | `main` |
 | 8 | 2026-06-15 | 类型/扩展名/时间自动标签 + 多标签分面过滤 | `be96a9d`, `92af9d1`, `9f231fd` | `main` |
 | 7 | 2026-06-14 | M9-2 Docker 化与部署文档 | `df2623b`, `f6e8421`, `4bbb6e2` | `main` |
