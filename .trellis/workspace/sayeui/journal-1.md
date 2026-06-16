@@ -340,3 +340,36 @@ NAS 部署核对发现自动标签引擎只有 path 一维、无多标签过滤�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 11: 手动标签（user tag）
+
+**Date**: 2026-06-16
+**Task**: 手动标签（user tag）
+**Branch**: `main`
+
+### Summary
+
+文件抽屉打自定义标签/移除+递归过滤。后端 POST /files/:id/tags（按「/」逐层建 user 节点，复用 ensure_tag）、DELETE /files/:id/tags/:tag_id（仅删 manual，auto→403，移除后向上递归清理空 user 节点）；FileTagInfo 加 source 跨层流转（前端据此显隐×）；fetch_file_tags 抽取复用。前端 fileApi/store/FileDrawer 联动。6 内存库单测 + clippy/build + 真实进程 e2e（建层级/递归过滤/auto拒删403/自动清理父子链）全过；spec 入 database-guidelines。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `30b9f1c` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
