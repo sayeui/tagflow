@@ -444,3 +444,36 @@ API 层 10 场景全绿：分页 p1=50/p2=26/p3=0（total 76）、搜索 report=
 ### Next Steps
 
 - 任务可走 finish/archive 收尾（待用户确认）
+
+
+## Session 13: 文件视图增强——真实 e2e 验证与收尾
+
+**Date**: 2026-06-16
+**Task**: 文件视图增强——真实 e2e 验证与收尾
+**Branch**: `main`
+
+### Summary
+
+对 commit 443e220 的 4 项改动做真实进程 e2e（76 文件库/后端 8080+前端 5173+Chrome DevTools）：API 层 10 场景（分页 p1=50/p2=26/p3=0、搜索 report=40/image=30/中文=1、%/ _ 转义边界当字面量）+ UI 层 5 验收点（卡片无重叠 DOM 测量 translateY 恒 176px/overflow=0、无限滚动 50→76、搜索框 report→40/40、视图切换集合不变、偏好 tagflow.viewMode 刷新恢复）全绿。prd 勾选全部 Requirements(4)/AC(5)。测试数据清理：进程停/73 png 删/db(files/tags/tasks)归零/cache 清空/工作区 clean。⚠️ admin 密码为登录验证已重置为 E2eVerify!2026，需用户改回。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9557711` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
