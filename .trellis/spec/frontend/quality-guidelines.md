@@ -44,6 +44,13 @@ If introducing a test framework, that's a team decision — don't bootstrap one 
 
 ---
 
+## Common Mistakes
+
+- **`<img style="display:none">` + `loading="lazy"` 不会加载**：浏览器对 `display:none` 的 lazy img 不发请求，`@load` 永不触发，图片永远不显示（`FileGrid` 缩略图历史坑）。改用 `opacity` 控制：`@load` 设 `opacity:1`、`@error` 设 `opacity:0`；`opacity:0` 的 img 仍会加载。
+- **受保护路由的媒体 `src` 会 401**：`<img>`/`<video>`/`<iframe src>` 不带 `Authorization` 头，受 `auth_middleware` 保护的资源（缩略图/文件内容）须用 `mediaUrl()`（`api/http.ts`）拼 `?token=<jwt>`，后端兜底逻辑见 backend `error-handling.md`。
+
+---
+
 ## Code Review Checklist
 
 - [ ] HTTP via `api/http.ts` only; no token handling outside the auth store?

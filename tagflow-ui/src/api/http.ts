@@ -59,6 +59,20 @@ export const tagApi = {
   getTree: () => instance.get('/v1/tags/tree'),
 }
 
+/** 构造带 JWT token 的媒体 URL（供 <img>/<video>/<iframe src> 用，绕过 Authorization 头限制）。
+ *  后端 auth_middleware 接受 ?token=<jwt> 兜底；token 从 auth store 取。 */
+export function mediaUrl(
+  path: string,
+  params?: Record<string, string | number | boolean>,
+): string {
+  const token = useAuthStore().token
+  const qs = new URLSearchParams()
+  if (token) qs.set('token', token)
+  if (params) for (const [k, v] of Object.entries(params)) qs.set(k, String(v))
+  const query = qs.toString()
+  return query ? `${path}?${query}` : path
+}
+
 export const fileApi = {
   list: (params?: {
     tag_ids?: number[]
@@ -75,6 +89,25 @@ export const fileApi = {
       },
     })
   },
+
+  /** 文件详情（元数据 + 标签） */
+  detail: (id: number) => instance.get(`/v1/files/${id}`),
+
+  /** 文本内容（axios 走 Authorization 头，无需 token query） */
+  contentText: (id: number) =>
+    instance
+      .get(`/v1/files/${id}/content`, {
+        responseType: 'text',
+        transformResponse: [(v) => v],
+      })
+      .then((res) => res.data as string),
+
+  /** 媒体内容 URL（含 token），供 <img>/<video>/<iframe src> 与下载使用 */
+  contentUrl: (id: number, opts?: { download?: boolean }) =>
+    mediaUrl(`/api/v1/files/${id}/content`, opts?.download ? { download: '1' } : undefined),
+
+  /** 缩略图 URL（含 token，修复历史 401） */
+  thumbnailUrl: (id: number) => mediaUrl(`/api/v1/files/${id}/thumbnail`),
 }
 
 export const libraryApi = {

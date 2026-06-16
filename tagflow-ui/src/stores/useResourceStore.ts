@@ -17,6 +17,24 @@ export interface FileItem {
   parent_path: string
 }
 
+/** 文件详情面板展示的单个标签（id + 名称 + 类别）。 */
+export interface FileTagInfo {
+  id: number
+  name: string
+  category: string
+}
+
+/** 文件详情（GET /api/v1/files/:id）：元数据 + 该文件全部标签。 */
+export interface FileDetail {
+  id: number
+  filename: string
+  extension: string | null
+  size: number
+  mtime: number
+  parent_path: string
+  tags: FileTagInfo[]
+}
+
 /** 分组显示顺序与中文标签 */
 const CATEGORY_ORDER = ['type', 'ext', 'path', 'time', 'user'] as const
 const CATEGORY_LABELS: Record<string, string> = {
@@ -39,6 +57,9 @@ export const useResourceStore = defineStore('resource', {
     files: [] as FileItem[],
     selectedTagIds: [] as number[],
     loading: false,
+    // 文件详情抽屉
+    selectedFileId: null as number | null,
+    fileDetail: null as FileDetail | null,
   }),
 
   getters: {
@@ -112,6 +133,24 @@ export const useResourceStore = defineStore('resource', {
       } finally {
         this.loading = false
       }
+    },
+
+    /** 打开文件详情抽屉：设置选中 id 并拉取详情（含标签） */
+    async openFile(id: number) {
+      this.selectedFileId = id
+      this.fileDetail = null
+      try {
+        const res = await fileApi.detail(id)
+        this.fileDetail = res.data
+      } catch (error) {
+        console.error('Failed to fetch file detail:', error)
+      }
+    },
+
+    /** 关闭抽屉 */
+    closeFile() {
+      this.selectedFileId = null
+      this.fileDetail = null
     },
   },
 })

@@ -3,6 +3,7 @@ import { onMounted } from 'vue'
 import { useResourceStore } from '@/stores/useResourceStore'
 import TagItem from '@/components/TagItem.vue'
 import FileGrid from '@/components/FileGrid.vue'
+import FileDrawer from '@/components/FileDrawer.vue'
 import { FolderOpen, Settings, X } from 'lucide-vue-next'
 
 const store = useResourceStore()
@@ -126,5 +127,8 @@ onMounted(() => {
         <FileGrid :files="store.files" />
       </section>
     </main>
+
+    <!-- 文件详情/预览抽屉 -->
+    <FileDrawer />
   </div>
 </template>

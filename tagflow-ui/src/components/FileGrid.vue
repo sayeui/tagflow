@@ -2,12 +2,13 @@
 import { RecycleScroller } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 import { FileText, Image as ImageIcon, FileCode, FileArchive } from 'lucide-vue-next'
+import { fileApi } from '../api/http'
+import { useResourceStore } from '../stores/useResourceStore'
 import type { FileItem } from '../stores/useResourceStore'
 
 defineProps<{ files: FileItem[] }>()
 
-// API 基础 URL
-const API_BASE = '/api/v1'
+const store = useResourceStore()
 
 // 假设网格每行显示 6 个，每个高度 160px
 const GRID_COLUMNS = 6
@@ -58,27 +59,29 @@ const formatFileSize = (bytes: number): string => {
       <div
         v-for="file in item.items"
         :key="file.id"
+        @click="store.openFile(file.id)"
         class="flex flex-col items-center p-3 border border-gray-200 rounded-lg hover:shadow-md hover:border-blue-300 transition-all cursor-pointer bg-white"
       >
         <!-- 缩略图容器 -->
         <div class="w-24 h-24 flex items-center justify-center bg-gray-50 rounded-lg mb-2 overflow-hidden relative">
-          <!-- 优先显示缩略图 -->
-          <img
-            :src="`${API_BASE}/files/${file.id}/thumbnail`"
-            :alt="file.filename"
-            class="w-full h-full object-cover"
-            @error="(e) => { (e.target as HTMLImageElement).style.display = 'none' }"
-            @load="(e) => { (e.target as HTMLImageElement).style.display = 'block' }"
-            loading="lazy"
-            style="display: none"
-          />
-          <!-- 备用图标 -->
-          <component :is="getFileIcon(file.extension)" class="w-12 h-12 absolute" :class="{
+          <!-- 备用图标（缩略图加载前/失败时显示，z-0 下层） -->
+          <component :is="getFileIcon(file.extension)" class="w-12 h-12 relative z-0" :class="{
             'text-green-500': getFileIcon(file.extension) === ImageIcon,
             'text-blue-500': getFileIcon(file.extension) === FileCode,
             'text-orange-500': getFileIcon(file.extension) === FileArchive,
             'text-gray-400': getFileIcon(file.extension) === FileText,
           }" />
+          <!-- 缩略图：absolute 填满、z-10 盖住图标；用 opacity 而非 display:none 控制显隐
+               （display:none 的 lazy img 浏览器不会加载，曾导致缩略图永远不显示） -->
+          <img
+            :src="fileApi.thumbnailUrl(file.id)"
+            :alt="file.filename"
+            class="absolute inset-0 w-full h-full object-cover z-10 transition-opacity duration-200"
+            @error="(e) => { (e.target as HTMLImageElement).style.opacity = '0' }"
+            @load="(e) => { (e.target as HTMLImageElement).style.opacity = '1' }"
+            loading="lazy"
+            style="opacity: 0"
+          />
         </div>
         <span class="text-xs text-gray-700 truncate w-full text-center px-1" :title="file.filename">
           {{ file.filename }}

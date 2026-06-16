@@ -108,31 +108,40 @@ pub async fn login(
 /// Authorization: Bearer <token>
 /// ```
 pub async fn auth_middleware(mut req: Request<Body>, next: Next) -> Result<Response, StatusCode> {
-    // 获取 Authorization 请求头
-    let auth_header = req
+    // 1. 优先 Authorization: Bearer <token>
+    let header_token = req
         .headers()
         .get(header::AUTHORIZATION)
-        .and_then(|h| h.to_str().ok());
+        .and_then(|h| h.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "));
 
-    if let Some(auth_value) = auth_header {
-        // 检查是否为 Bearer 令牌
-        if let Some(token) = auth_value.strip_prefix("Bearer ") {
-            // 验证令牌
-            match decode_jwt(token) {
-                Ok(claims) => {
-                    // 令牌有效，将用户信息存储到请求扩展中
-                    req.extensions_mut().insert(claims);
-                    return Ok(next.run(req).await);
-                }
-                Err(_) => {
-                    return Err(StatusCode::UNAUTHORIZED);
-                }
-            }
+    // 2. 兜底查询参数 ?token=<jwt>（供 <img>/<video>/<iframe src> 等无法携带
+    //    Authorization 头的媒体请求；同时修复缩略图因裸 <img src> 被 401 的历史问题）。
+    //    安全权衡：JWT 进入 URL（server log / 浏览器历史可见）；自托管单用户 LAN 可接受，
+    //    未来可硬化为短时效 media token。
+    let query_token = query_token(req.uri().query());
+
+    match header_token.or(query_token).and_then(|t| decode_jwt(t).ok()) {
+        Some(claims) => {
+            req.extensions_mut().insert(claims);
+            Ok(next.run(req).await)
+        }
+        None => Err(StatusCode::UNAUTHORIZED),
+    }
+}
+
+/// 从 URL query 中提取首个非空 `token` 参数值。
+///
+/// 抽成纯函数便于单测；不引入 serde_urlencoded 以保持中间件零额外分配。
+fn query_token(query: Option<&str>) -> Option<&str> {
+    let q = query?;
+    for kv in q.split('&') {
+        let mut it = kv.splitn(2, '=');
+        if it.next() == Some("token") {
+            return it.next().filter(|s| !s.is_empty());
         }
     }
-
-    // 无令牌或令牌格式错误
-    Err(StatusCode::UNAUTHORIZED)
+    None
 }
 
 /// 从请求扩展中提取当前用户信息的辅助函数
@@ -253,5 +262,18 @@ mod tests {
         };
         let json = serde_json::to_string(&resp).unwrap();
         assert_eq!(json, r#"{"token":"test_token"}"#);
+    }
+
+    #[test]
+    fn query_token_extracts_first_non_empty() {
+        assert_eq!(query_token(Some("token=abc")), Some("abc"));
+        assert_eq!(
+            query_token(Some("foo=1&token=abc&bar=2")),
+            Some("abc")
+        );
+        assert_eq!(query_token(Some("foo=1")), None);
+        assert_eq!(query_token(None), None);
+        // 空值不算有效 token（避免拼接 `?token=` 时误判）
+        assert_eq!(query_token(Some("token=")), None);
     }
 }

@@ -79,3 +79,21 @@ Error bodies are usually empty; do not invent new error envelope formats without
 - Do not leak internal error strings to clients — log details server-side, return bare status codes.
 - Do not let the worker loop propagate errors upward; handle-and-continue is required.
 - `list_files` (`api/file.rs:54`) swallows DB errors with `unwrap_or_default()` — known tech debt; do not copy this pattern into new endpoints, prefer `Result<Json<T>, StatusCode>`.
+- OpenDAL 0.50 的 `op.read()` / `op.read_with(path).range(..)` 返回 `opendal::Buffer`（非 `Vec<u8>`）——传给 `Body::from` 或 `String::from_utf8` 前必须 `.to_vec()`，否则 `From<Buffer>` 未实现导致编译失败。参考 `api/file.rs` `get_content`：`let bytes = op.read(&path).await?; Body::from(bytes.to_vec())`。
+
+---
+
+## 受保护资源 URL 与媒体鉴权（`?token=` 兜底）
+
+浏览器原生媒体标签（`<img>` / `<video>` / `<audio>` / `<iframe src>`）发起的请求**不会**携带 `Authorization` 头。受 `auth_middleware` 保护的资源（缩略图、文件内容）若仅靠 header 鉴权会被一律 401，且 `<img @error>` 静默隐藏，表现为"资源加载不出来"——历史缩略图一直显示图标而非真缩略图的根因正是此。
+
+**解法**：`auth_middleware`（`api/auth.rs`）在 `Authorization: Bearer` 之外，额外接受查询参数 `?token=<jwt>` 兜底（header 优先，query 次之）。前端用 `mediaUrl()` helper（`api/http.ts`）统一拼接 `?token=<jwt>` 供媒体 `src` 与下载使用。
+
+**契约**：
+- header 与 query 二选一即可，header 优先；
+- query `token=` 空值不算（`query_token` 返回 `None` → 401）；
+- 任何凭证缺失/无效一律 401，与无 header 凭证一致。
+
+**边界**：JWT 进 URL 会出现在 server access log / 浏览器历史。自托管单用户 LAN 可接受；多用户或公网部署应改短时效签名 media token。
+
+**测试**：`api::auth::query_token_extracts_first_non_empty` 覆盖 query 解析。前端配合见 frontend `quality-guidelines.md` 对应 common mistake。

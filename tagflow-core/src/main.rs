@@ -106,7 +106,9 @@ async fn main() -> anyhow::Result<()> {
     let protected_routes = Router::new()
         .route("/api/v1/tags/tree", get(api::tag::get_tag_tree))
         .route("/api/v1/files", get(api::file::list_files))
+        .route("/api/v1/files/:id", get(api::file::get_file_detail))
         .route("/api/v1/files/:id/thumbnail", get(api::file::get_thumbnail))
+        .route("/api/v1/files/:id/content", get(api::file::get_content))
         .route(
             "/api/auth/update-password",
             post(api::auth::update_password),
