@@ -1,16 +1,52 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useResourceStore } from '@/stores/useResourceStore'
 import TagItem from '@/components/TagItem.vue'
 import FileGrid from '@/components/FileGrid.vue'
+import FileList from '@/components/FileList.vue'
 import FileDrawer from '@/components/FileDrawer.vue'
-import { FolderOpen, Settings, X } from 'lucide-vue-next'
+import { FolderOpen, Settings, X, LayoutGrid, List, Search } from 'lucide-vue-next'
 
 const store = useResourceStore()
+
+// 视图偏好持久化（grid / list）。key 集中在此一处，不在他处读写。
+const VIEW_MODE_KEY = 'tagflow.viewMode'
+type ViewMode = 'grid' | 'list'
+const viewMode = ref<ViewMode>(
+  (localStorage.getItem(VIEW_MODE_KEY) as ViewMode) === 'list' ? 'list' : 'grid',
+)
+const setViewMode = (mode: ViewMode) => {
+  viewMode.value = mode
+  localStorage.setItem(VIEW_MODE_KEY, mode)
+}
+
+// 文件名搜索：300ms 防抖。输入变化 → 写 keyword → 重置分页重拉。
+// 用 watch + setTimeout 手写防抖（项目未引入 lodash）。
+const keywordInput = ref(store.keyword)
+let debounceTimer: ReturnType<typeof setTimeout> | null = null
+watch(keywordInput, (val) => {
+  if (debounceTimer) clearTimeout(debounceTimer)
+  debounceTimer = setTimeout(() => {
+    store.setKeyword(val)
+  }, 300)
+})
+
+// 视图触底 → 触发下一页（store 内有 hasMore/loading 守卫）
+const onReachBottom = () => {
+  store.fetchMore()
+}
 
 onMounted(() => {
   store.fetchTags()
   store.fetchFiles()
+})
+
+// 卸载时清理防抖定时器，避免离开页面后滞后触发 store.setKeyword（陈旧请求/泄漏）
+onUnmounted(() => {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer)
+    debounceTimer = null
+  }
 })
 </script>
 
@@ -55,13 +91,13 @@ onMounted(() => {
       </div>
 
       <div class="p-4 border-t border-gray-200 text-xs text-gray-400">
-        <div>共 {{ store.files.length }} 个文件</div>
+        <div>共 {{ store.files.length }} / {{ store.total }} 个文件</div>
       </div>
     </aside>
 
     <!-- 右侧主区域 -->
     <main class="flex-1 flex flex-col min-w-0">
-      <header class="h-14 border-b border-gray-200 bg-white flex items-center px-6 justify-between">
+      <header class="h-14 border-b border-gray-200 bg-white flex items-center px-6 justify-between gap-4">
         <!-- 面包屑：当前过滤上下文（category:name 多标签以 ∧ 连接） -->
         <div class="text-sm flex items-center gap-2 min-w-0">
           <span class="text-gray-500 shrink-0">当前查看:</span>
@@ -86,28 +122,45 @@ onMounted(() => {
           </template>
         </div>
 
-        <div class="flex items-center gap-4">
-          <div v-if="store.loading" class="flex items-center text-blue-500">
+        <div class="flex items-center gap-4 shrink-0">
+          <!-- 文件名搜索框 -->
+          <div class="relative">
+            <Search class="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <input
+              v-model="keywordInput"
+              type="text"
+              placeholder="搜索文件名..."
+              class="w-56 pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-colors"
+            />
+          </div>
+
+          <!-- 加载指示 -->
+          <div v-if="store.loading || store.loadingMore" class="flex items-center text-blue-500">
             <svg
               class="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"
               viewBox="0 0 24 24"
+            ></svg>
+            <span class="ml-2 text-sm">{{ store.loadingMore ? '加载更多...' : '加载中...' }}</span>
+          </div>
+
+          <!-- 视图切换 -->
+          <div class="flex items-center gap-1 border border-gray-200 rounded-lg p-0.5">
+            <button
+              @click="setViewMode('grid')"
+              class="p-1.5 rounded transition-colors"
+              :class="viewMode === 'grid' ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-100'"
+              title="卡片视图"
             >
-              <circle
-                class="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                stroke-width="4"
-                fill="none"
-              />
-              <path
-                class="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              />
-            </svg>
-            <span class="ml-2 text-sm">加载中...</span>
+              <LayoutGrid class="w-4 h-4" />
+            </button>
+            <button
+              @click="setViewMode('list')"
+              class="p-1.5 rounded transition-colors"
+              :class="viewMode === 'list' ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-100'"
+              title="列表视图"
+            >
+              <List class="w-4 h-4" />
+            </button>
           </div>
 
           <!-- 设置按钮 -->
@@ -124,7 +177,12 @@ onMounted(() => {
       </header>
 
       <section class="flex-1 overflow-hidden">
-        <FileGrid :files="store.files" />
+        <FileGrid
+          v-if="viewMode === 'grid'"
+          :files="store.files"
+          @reach-bottom="onReachBottom"
+        />
+        <FileList v-else :files="store.files" @reach-bottom="onReachBottom" />
       </section>
     </main>
 

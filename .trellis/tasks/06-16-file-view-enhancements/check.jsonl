@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "前端质量基线校验：build/TS 类型/组件规范"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "后端质量基线校验：clippy/test，单测需覆盖 keyword 搜索与 %/_ 转义"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "校验前后端 keyword/分页/total 契约一致、跨层数据流正确"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "校验 store 分页/搜索状态正确性、搜索/标签切换联动重置无竞态"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "校验类型安全，分页/视图模式枚举无 any 滥用"}

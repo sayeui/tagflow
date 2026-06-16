@@ -73,6 +73,10 @@ pub struct FileQuery {
     pub recursive: Option<bool>,
     pub page: Option<i64>,
     pub limit: Option<i64>,
+    /// 文件名模糊匹配（`filename LIKE '%kw%'`，不区分 ASCII 大小写）。
+    /// 与 tag_ids AND 组合；None/空字符串表示不过滤。
+    #[serde(default)]
+    pub keyword: Option<String>,
 }
 
 /// 反序列化逗号分隔的 i32 列表（`"3,7,12"` → `vec![3,7,12]`，`""` → `vec![]`）。

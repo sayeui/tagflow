@@ -1,0 +1,7 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "FileGrid 修复、新增 FileList 视图、虚拟滚动 item-size、header 切换 toggle 均需遵循组件规范"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "store 增加分页状态(page/pageSize/total/hasMore/loadingMore)、fetchMore、keyword 字段，需遵循 Pinia store 规范"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "list() 参数、分页/搜索状态、FileItem 等需类型安全，避免 any"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "新增 filename LIKE 查询、%/_ 转义、参数绑定需遵循 SQL 规范与绑定约定"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "查询函数 StatusCode 错误处理需与现有 list_files 三分支一致"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "FileQuery.keyword / 分页 total / tag_ids 前后端契约需一致透传"}
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "3 个查询函数复用 LIKE 过滤、两种视图复用无限滚动逻辑，避免重复"}

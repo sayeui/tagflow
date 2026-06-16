@@ -1,20 +1,41 @@
 <script setup lang="ts">
 import { RecycleScroller } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
-import { FileText, Image as ImageIcon, FileCode, FileArchive } from 'lucide-vue-next'
+import {
+  FileText,
+  Image as ImageIcon,
+  FileCode,
+  FileArchive,
+} from 'lucide-vue-next'
 import { fileApi } from '../api/http'
 import { useResourceStore } from '../stores/useResourceStore'
 import type { FileItem } from '../stores/useResourceStore'
 
 defineProps<{ files: FileItem[] }>()
+const emit = defineEmits<{ 'reach-bottom': [] }>()
 
 const store = useResourceStore()
 
-// 假设网格每行显示 6 个，每个高度 160px
+// 卡片视图布局常量。
+//
+// RecycleScroller 用绝对定位排布每个虚拟 item，要求 `item-size` 严格等于
+// 该 item 在垂直方向的「总占位高度」（含行间空白），否则后续 item 定位错乱
+// → 上下行重叠/裁切。
+//
+// 卡片自然高度精确拆解（border + p-3 + 内容）：
+//   - border 1px × 2 = 2px
+//   - p-3 上下 = 24px
+//   - 缩略图 h-24 = 96px
+//   - mb-2 = 8px
+//   - 文件名 text-xs 单行(truncate) ≈ 16px
+//   - mt-1(4px) + 文件大小 text-xs ≈ 20px
+//   - 合计 ≈ 166px
+// 行容器高度 = 卡片高度(166) + 行间距(10) = 176px，卡片置顶，下方 10px 间距由
+// 容器剩余空间承担（不在卡片内加 pt/pb 撑高，避免内容溢出固定行高）。
 const GRID_COLUMNS = 6
-const ITEM_HEIGHT = 160
+const ROW_HEIGHT = 176
 
-// 将扁平数组转化为行数组，适配网格渲染
+// 将扁平数组转化为行数组，适配网格渲染（每行 GRID_COLUMNS 个）。
 const computedRows = (items: FileItem[]) => {
   const rows: Array<{ id: number; items: FileItem[] }> = []
   for (let i = 0; i < items.length; i += GRID_COLUMNS) {
@@ -44,6 +65,15 @@ const formatFileSize = (bytes: number): string => {
   const i = Math.floor(Math.log(bytes) / Math.log(k))
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
+
+// vue-virtual-scroller@2.0.0-beta.8 的 RecycleScroller 不发射 `scroll` 事件，
+// 可用事件为 `scroll-start` / `scroll-end` / `update` / `resize` / `visible` / `hidden`。
+// `scroll-end` 在「最后一个 item 进入可视区（被回收池新分配视图）」时触发，
+// 正好对应"滚动到底部 → 加载下一页"语义。父组件 onReachBottom → store.fetchMore，
+// 由 store 的 hasMore/loading 守卫防重复。
+const onScrollEnd = () => {
+  emit('reach-bottom')
+}
 </script>
 
 <template>
@@ -51,11 +81,13 @@ const formatFileSize = (bytes: number): string => {
     v-if="files.length > 0"
     class="h-full w-full"
     :items="computedRows(files)"
-    :item-size="ITEM_HEIGHT"
+    :item-size="ROW_HEIGHT"
     key-field="id"
+    @scroll-end="onScrollEnd"
     v-slot="{ item }"
   >
-    <div class="grid grid-cols-6 gap-4 px-4">
+    <!-- 行容器：固定高度 = item-size(176px)；卡片自然高 ~166px，下方 ~10px 为行间距 -->
+    <div class="h-[176px] grid grid-cols-6 gap-4 px-4 items-start">
       <div
         v-for="file in item.items"
         :key="file.id"
@@ -63,7 +95,7 @@ const formatFileSize = (bytes: number): string => {
         class="flex flex-col items-center p-3 border border-gray-200 rounded-lg hover:shadow-md hover:border-blue-300 transition-all cursor-pointer bg-white"
       >
         <!-- 缩略图容器 -->
-        <div class="w-24 h-24 flex items-center justify-center bg-gray-50 rounded-lg mb-2 overflow-hidden relative">
+        <div class="w-24 h-24 flex items-center justify-center bg-gray-50 rounded-lg mb-2 overflow-hidden relative shrink-0">
           <!-- 备用图标（缩略图加载前/失败时显示，z-0 下层） -->
           <component :is="getFileIcon(file.extension)" class="w-12 h-12 relative z-0" :class="{
             'text-green-500': getFileIcon(file.extension) === ImageIcon,

@@ -62,6 +62,13 @@ export const useResourceStore = defineStore('resource', {
     // 文件详情抽屉
     selectedFileId: null as number | null,
     fileDetail: null as FileDetail | null,
+    // 分页 / 无限滚动状态
+    page: 1,
+    pageSize: 50,
+    total: 0,
+    hasMore: false,
+    loadingMore: false,
+    keyword: '' as string,
   }),
 
   getters: {
@@ -123,17 +130,62 @@ export const useResourceStore = defineStore('resource', {
       this.fetchFiles()
     },
 
+    /** 设置搜索关键词并重置分页拉取（标签切换/清空/搜索框变化都走这个） */
+    setKeyword(keyword: string) {
+      this.keyword = keyword
+      this.fetchFiles()
+    },
+
+    /** 重置分页后拉取并替换 files（用于标签切换/搜索变化/清空） */
     async fetchFiles() {
       this.loading = true
+      this.page = 1
       try {
         const tagIds = this.selectedTagIds.length ? this.selectedTagIds : undefined
-        const res = await fileApi.list({ tag_ids: tagIds, recursive: true })
+        const keyword = this.keyword.trim() || undefined
+        const res = await fileApi.list({
+          tag_ids: tagIds,
+          recursive: true,
+          page: this.page,
+          limit: this.pageSize,
+          keyword,
+        })
         this.files = res.data.items
+        this.total = res.data.total
+        this.hasMore = this.files.length < this.total
       } catch (error) {
         console.error('Failed to fetch files:', error)
         throw error
       } finally {
         this.loading = false
+      }
+    },
+
+    /** 追加下一页（无限滚动触底时调用）。
+     *  守卫：hasMore && !loadingMore && !loading，防重复触发。 */
+    async fetchMore() {
+      if (!this.hasMore || this.loadingMore || this.loading) return
+      this.loadingMore = true
+      try {
+        const nextPage = this.page + 1
+        const tagIds = this.selectedTagIds.length ? this.selectedTagIds : undefined
+        const keyword = this.keyword.trim() || undefined
+        const res = await fileApi.list({
+          tag_ids: tagIds,
+          recursive: true,
+          page: nextPage,
+          limit: this.pageSize,
+          keyword,
+        })
+        this.files.push(...res.data.items)
+        this.page = nextPage
+        this.total = res.data.total
+        this.hasMore = this.files.length < this.total
+      } catch (error) {
+        console.error('Failed to fetch more files:', error)
+        throw error
+      } finally {
+        this.loadingMore = false
       }
     },
 

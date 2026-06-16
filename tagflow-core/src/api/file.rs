@@ -34,12 +34,20 @@ pub async fn list_files(
         }
     }
 
+    // 文件名搜索：trim 后空串视为不过滤，保留原行为
+    let keyword = query
+        .keyword
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+
     let (items, total) = if tag_ids.is_empty() {
-        query_all_files(&pool, limit, offset).await?
+        query_all_files(&pool, keyword.as_deref(), limit, offset).await?
     } else if recursive {
-        query_files_by_tags_recursive(&pool, &tag_ids, limit, offset).await?
+        query_files_by_tags_recursive(&pool, &tag_ids, keyword.as_deref(), limit, offset).await?
     } else {
-        query_files_by_tags_direct(&pool, &tag_ids, limit, offset).await?
+        query_files_by_tags_direct(&pool, &tag_ids, keyword.as_deref(), limit, offset).await?
     };
 
     let items: Vec<FileItem> = items.into_iter().map(|e| e.into()).collect();
@@ -52,30 +60,61 @@ fn placeholders(n: usize) -> String {
     std::iter::repeat_n("?", n).collect::<Vec<_>>().join(", ")
 }
 
+/// 构造 `filename LIKE` 的匹配模式（`%kw%`），并转义 LIKE 通配符与转义符本身。
+///
+/// 转义规则（ESCAPE '\'）：`\` → `\\`、`%` → `\%`、`_` → `\_`，
+/// 之后用 `%` 包裹做子串匹配。调用方需在同一 SQL 中声明 `ESCAPE '\'`。
+fn like_pattern(kw: &str) -> String {
+    let mut out = String::with_capacity(kw.len() + 2);
+    for ch in kw.chars() {
+        match ch {
+            '\\' | '%' | '_' => {
+                out.push('\\');
+                out.push(ch);
+            }
+            _ => out.push(ch),
+        }
+    }
+    format!("%{}%", out)
+}
+
 async fn query_all_files(
     pool: &SqlitePool,
+    keyword: Option<&str>,
     limit: i64,
     offset: i64,
 ) -> Result<(Vec<FileEntry>, i64), StatusCode> {
-    let items = sqlx::query_as::<_, FileEntry>(
-        "SELECT * FROM files WHERE status = 1 ORDER BY mtime DESC LIMIT ? OFFSET ?",
-    )
-    .bind(limit)
-    .bind(offset)
-    .fetch_all(pool)
-    .await
-    .map_err(|e| {
-        error!("查询文件列表失败: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
-
-    let total = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM files WHERE status = 1")
-        .fetch_one(pool)
+    let kw_clause = keyword.map(|_| " AND filename LIKE ? ESCAPE '\\'");
+    let items_sql = format!(
+        "SELECT * FROM files WHERE status = 1{kw} ORDER BY mtime DESC LIMIT ? OFFSET ?",
+        kw = kw_clause.unwrap_or("")
+    );
+    let mut q = sqlx::query_as::<_, FileEntry>(&items_sql);
+    if let Some(kw) = keyword {
+        q = q.bind(like_pattern(kw));
+    }
+    let items = q
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(pool)
         .await
         .map_err(|e| {
-            error!("统计文件总数失败: {}", e);
+            error!("查询文件列表失败: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
+
+    let count_sql = format!(
+        "SELECT COUNT(*) FROM files WHERE status = 1{kw}",
+        kw = kw_clause.unwrap_or("")
+    );
+    let mut q = sqlx::query_scalar::<_, i64>(&count_sql);
+    if let Some(kw) = keyword {
+        q = q.bind(like_pattern(kw));
+    }
+    let total = q.fetch_one(pool).await.map_err(|e| {
+        error!("统计文件总数失败: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     Ok((items, total))
 }
@@ -84,11 +123,13 @@ async fn query_all_files(
 async fn query_files_by_tags_recursive(
     pool: &SqlitePool,
     tag_ids: &[i32],
+    keyword: Option<&str>,
     limit: i64,
     offset: i64,
 ) -> Result<(Vec<FileEntry>, i64), StatusCode> {
     let ph = placeholders(tag_ids.len());
     let n = tag_ids.len() as i64;
+    let kw_clause = keyword.map(|_| " AND f.filename LIKE ? ESCAPE '\\'");
 
     let items_sql = format!(
         r#"
@@ -104,16 +145,20 @@ async fn query_files_by_tags_recursive(
             JOIN sub_tags st ON ft.tag_id = st.tag_id
             GROUP BY ft.file_id
             HAVING COUNT(DISTINCT st.root_id) = ?
-        )
+        ){kw}
         ORDER BY f.mtime DESC LIMIT ? OFFSET ?
-        "#
+        "#,
+        kw = kw_clause.unwrap_or("")
     );
     let mut q = sqlx::query_as::<_, FileEntry>(&items_sql);
     for id in tag_ids {
         q = q.bind(id);
     }
+    q = q.bind(n);
+    if let Some(kw) = keyword {
+        q = q.bind(like_pattern(kw));
+    }
     let items = q
-        .bind(n)
         .bind(limit)
         .bind(offset)
         .fetch_all(pool)
@@ -137,14 +182,19 @@ async fn query_files_by_tags_recursive(
             JOIN sub_tags st ON ft.tag_id = st.tag_id
             GROUP BY ft.file_id
             HAVING COUNT(DISTINCT st.root_id) = ?
-        )
-        "#
+        ){kw}
+        "#,
+        kw = kw_clause.unwrap_or("")
     );
     let mut q = sqlx::query_scalar::<_, i64>(&count_sql);
     for id in tag_ids {
         q = q.bind(id);
     }
-    let total = q.bind(n).fetch_one(pool).await.map_err(|e| {
+    q = q.bind(n);
+    if let Some(kw) = keyword {
+        q = q.bind(like_pattern(kw));
+    }
+    let total = q.fetch_one(pool).await.map_err(|e| {
         error!("多标签递归计数失败: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
@@ -156,11 +206,13 @@ async fn query_files_by_tags_recursive(
 async fn query_files_by_tags_direct(
     pool: &SqlitePool,
     tag_ids: &[i32],
+    keyword: Option<&str>,
     limit: i64,
     offset: i64,
 ) -> Result<(Vec<FileEntry>, i64), StatusCode> {
     let ph = placeholders(tag_ids.len());
     let n = tag_ids.len() as i64;
+    let kw_clause = keyword.map(|_| " AND f.filename LIKE ? ESCAPE '\\'");
 
     let items_sql = format!(
         r#"
@@ -170,16 +222,20 @@ async fn query_files_by_tags_direct(
             WHERE ft.tag_id IN ({ph})
             GROUP BY ft.file_id
             HAVING COUNT(DISTINCT ft.tag_id) = ?
-        )
+        ){kw}
         ORDER BY f.mtime DESC LIMIT ? OFFSET ?
-        "#
+        "#,
+        kw = kw_clause.unwrap_or("")
     );
     let mut q = sqlx::query_as::<_, FileEntry>(&items_sql);
     for id in tag_ids {
         q = q.bind(id);
     }
+    q = q.bind(n);
+    if let Some(kw) = keyword {
+        q = q.bind(like_pattern(kw));
+    }
     let items = q
-        .bind(n)
         .bind(limit)
         .bind(offset)
         .fetch_all(pool)
@@ -197,14 +253,19 @@ async fn query_files_by_tags_direct(
             WHERE ft.tag_id IN ({ph})
             GROUP BY ft.file_id
             HAVING COUNT(DISTINCT ft.tag_id) = ?
-        )
-        "#
+        ){kw}
+        "#,
+        kw = kw_clause.unwrap_or("")
     );
     let mut q = sqlx::query_scalar::<_, i64>(&count_sql);
     for id in tag_ids {
         q = q.bind(id);
     }
-    let total = q.bind(n).fetch_one(pool).await.map_err(|e| {
+    q = q.bind(n);
+    if let Some(kw) = keyword {
+        q = q.bind(like_pattern(kw));
+    }
+    let total = q.fetch_one(pool).await.map_err(|e| {
         error!("多标签直接计数失败: {}", e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
@@ -846,6 +907,18 @@ mod tests {
         assert_eq!(placeholders(0), "");
     }
 
+    #[test]
+    fn like_pattern_wraps_and_escapes() {
+        // 普通子串：两侧加 %
+        assert_eq!(like_pattern("abc"), "%abc%");
+        // 中文直接透传（无大小写问题）
+        assert_eq!(like_pattern("报告"), "%报告%");
+        // % 与 _ 转义
+        assert_eq!(like_pattern("50%_off"), "%50\\%\\_off%");
+        // 反斜杠自身转义
+        assert_eq!(like_pattern(r"a\b"), r"%a\\b%");
+    }
+
     /// 构造单连接内存库（保证 schema 在同连接内可见），建表 + 开外键。
     async fn setup_db() -> SqlitePool {
         let pool = sqlx::sqlite::SqlitePoolOptions::new()
@@ -919,7 +992,7 @@ mod tests {
         insert_file(&pool, "c.txt").await;
 
         // 查 year：递归应命中挂在 month 上的两个文件
-        let (items, total) = query_files_by_tags_recursive(&pool, &[year], 50, 0)
+        let (items, total) = query_files_by_tags_recursive(&pool, &[year], None, 50, 0)
             .await
             .unwrap();
         assert_eq!(total, 2);
@@ -946,14 +1019,14 @@ mod tests {
         link(&pool, f3, text).await;
 
         // txt AND text → 只有 f1
-        let (items, total) = query_files_by_tags_direct(&pool, &[txt, text], 50, 0)
+        let (items, total) = query_files_by_tags_direct(&pool, &[txt, text], None, 50, 0)
             .await
             .unwrap();
         assert_eq!(total, 1);
         assert_eq!(items[0].filename, "a.txt");
 
         // 单个 text → f1, f3
-        let (_, total) = query_files_by_tags_direct(&pool, &[text], 50, 0)
+        let (_, total) = query_files_by_tags_direct(&pool, &[text], None, 50, 0)
             .await
             .unwrap();
         assert_eq!(total, 2);
@@ -968,11 +1041,72 @@ mod tests {
         link(&pool, f1, txt).await;
 
         // txt AND mp4 → 空（没有任何文件同时命中）
-        let (items, total) = query_files_by_tags_direct(&pool, &[txt, mp4], 50, 0)
+        let (items, total) = query_files_by_tags_direct(&pool, &[txt, mp4], None, 50, 0)
             .await
             .unwrap();
         assert_eq!(total, 0);
         assert!(items.is_empty());
+    }
+
+    #[tokio::test]
+    async fn keyword_filters_by_filename_substring() {
+        let pool = setup_db().await;
+        insert_file(&pool, "report_2024.txt").await;
+        insert_file(&pool, "REPORT_draft.txt").await; // 大小写不敏感
+        insert_file(&pool, "notes.md").await;
+        insert_file(&pool, "summary.txt").await;
+
+        // "report" 命中两个（ASCII 不区分大小写）
+        let (items, total) = query_all_files(&pool, Some("report"), 50, 0).await.unwrap();
+        assert_eq!(total, 2);
+        assert_eq!(items.len(), 2);
+        let names: Vec<_> = items.iter().map(|f| f.filename.as_str()).collect();
+        assert!(names.contains(&"report_2024.txt"));
+        assert!(names.contains(&"REPORT_draft.txt"));
+
+        // 无关键词 → 全部 4 个
+        let (_, total) = query_all_files(&pool, None, 50, 0).await.unwrap();
+        assert_eq!(total, 4);
+
+        // 中文子串
+        insert_file(&pool, "季度报告.docx").await;
+        let (items, total) = query_all_files(&pool, Some("报告"), 50, 0).await.unwrap();
+        assert_eq!(total, 1);
+        assert_eq!(items[0].filename, "季度报告.docx");
+    }
+
+    #[tokio::test]
+    async fn keyword_and_tags_combine() {
+        let pool = setup_db().await;
+        let txt = insert_tag(&pool, "txt", "ext", None).await;
+        let f1 = insert_file(&pool, "alpha.txt").await;
+        link(&pool, f1, txt).await;
+        let f2 = insert_file(&pool, "alpha_beta.txt").await;
+        link(&pool, f2, txt).await;
+        let f3 = insert_file(&pool, "beta.txt").await;
+        link(&pool, f3, txt).await;
+
+        // tag=txt AND keyword=alpha → 2 个（alpha.txt、alpha_beta.txt）
+        let (items, total) = query_files_by_tags_direct(&pool, &[txt], Some("alpha"), 50, 0)
+            .await
+            .unwrap();
+        assert_eq!(total, 2);
+        assert_eq!(items.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn keyword_escapes_like_wildcards() {
+        let pool = setup_db().await;
+        insert_file(&pool, "50%_off.txt").await; // 字面量含 % 与 _
+        insert_file(&pool, "500off.txt").await; // 仅作为对照（不含下划线/百分号字面）
+        insert_file(&pool, "normal.txt").await;
+
+        // 精确搜索字面量 "50%_off"，应只命中那一个文件而非被当成通配符
+        let (items, total) = query_all_files(&pool, Some("50%_off"), 50, 0)
+            .await
+            .unwrap();
+        assert_eq!(total, 1);
+        assert_eq!(items[0].filename, "50%_off.txt");
     }
 
     #[test]

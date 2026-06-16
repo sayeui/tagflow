@@ -79,6 +79,7 @@ export const fileApi = {
     recursive?: boolean
     page?: number
     limit?: number
+    keyword?: string
   }) => {
     // axum serde_urlencoded 不支持重复 key 成 Vec，改用逗号分隔（tag_ids=3,7）。
     const { tag_ids, ...rest } = params ?? {}
