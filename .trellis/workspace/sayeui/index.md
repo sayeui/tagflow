@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 8
-- **Last Active**: 2026-06-15
+- **Total Sessions**: 9
+- **Last Active**: 2026-06-16
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~275 | Active |
+| `journal-1.md` | ~308 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 9 | 2026-06-16 | 媒体预览抽屉：文件详情 + 多类型预览 + 下载 | `7415c62` | `main` |
 | 8 | 2026-06-15 | 类型/扩展名/时间自动标签 + 多标签分面过滤 | `be96a9d`, `92af9d1`, `9f231fd` | `main` |
 | 7 | 2026-06-14 | M9-2 Docker 化与部署文档 | `df2623b`, `f6e8421`, `4bbb6e2` | `main` |
 | 6 | 2026-06-14 | M9-1: rust-embed 单二进制 + 配置外部化 | `1251d02` | `main` |

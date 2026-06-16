@@ -273,3 +273,36 @@ NAS 部署核对发现自动标签引擎只有 path 一维、无多标签过滤�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 9: 媒体预览抽屉：文件详情 + 多类型预览 + 下载
+
+**Date**: 2026-06-16
+**Task**: 媒体预览抽屉：文件详情 + 多类型预览 + 下载
+**Branch**: `main`
+
+### Summary
+
+实现点击文件卡片滑出右侧抽屉，按类型预览：文本(DynamicScroller 虚拟滚动)、Markdown(markdown-it html:false)、PDF(iframe)、图片(点击全屏)、视频(Range seek)、音频，附下载/Esc+遮罩关闭。后端新增 GET /files/:id/content(类型分流+Range 206+GBK→UTF-8 转码+下载头) 与 GET /files/:id(元数据+标签)。关键修复：auth_middleware 增加 ?token=<jwt> 兜底，解决浏览器媒体 src/缩略图被 401 静默隐藏的历史问题；FileGrid 缩略图改 opacity 显隐(display:none 的 lazy img 不加载)。trellis-check 通过并 self-fix 空内容文件渲染缺口。e2e 8 文件全类型验证通过。spec 捕获 ?token= 鉴权/OpenDAL Buffer/display:none lazy img 三约定。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7415c62` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
