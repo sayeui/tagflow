@@ -542,3 +542,36 @@ Session 聚焦 v0.2.0 发版准备 + 一个发版阻塞 P0 bug 修复。(1) 发�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 17: 修复非媒体文件缩略图 404
+
+**Date**: 2026-06-22
+**Task**: 修复非媒体文件缩略图 404
+**Branch**: `main`
+
+### Summary
+
+修复前端对非媒体文件请求缩略图导致 404 刷屏（发版阻塞）。根因：FileGrid.vue 对所有文件无条件渲染 <img src=thumbnail>，但后端只为 MEDIA_EXTENSIONS（scanner/mod.rs:141）入列缩略图任务，文本/PDF/代码/归档等非媒体永不生成缩略图 → 404。修复：FileGrid 加 MEDIA_EXTENSIONS（与后端逐字一致，不含 svg）+ isMediaFile + img v-if，非媒体不渲染不发请求；图标白名单（getFileIcon imageExts 含 svg）与缩略图白名单分离。e2e：fixtures 加 notes.txt 非媒体夹具 + EXPECTED_FILE_COUNT 6 + 新用例拦截 thumbnail 请求断言非媒体不发起；thumbnails.spec 改按媒体扩展名过滤选 fileId（修 notes.txt 最新 mtime 排序靠前导致选中非媒体的跨层回归）。spec：frontend/component-guidelines 加「缩略图媒体白名单（跨层契约）」节（前端必须与后端 MEDIA_EXTENSIONS 逐字一致）。npm run build clean / e2e 12 passed。NAS 复验待用户。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1339ad9` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
