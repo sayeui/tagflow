@@ -2,7 +2,10 @@
 #
 # 使用方法：
 #   1. 复制 .env.example 为 .env 并填写 TAGFLOW_JWT_SECRET / TAGFLOW_ADMIN_PASSWORD
-#   2. 准备宿主目录：mkdir -p ./cache ./library && chown -R 1000:1000 ./cache
+#   2. 准备宿主目录并修正属主（容器以 UID 1000 运行，bind mount 的 host 目录须归 1000 可写）：
+#      mkdir -p ./cache ./library && chown -R 1000:1000 ./cache
+#      说明：cache 是缩略图缓存（webp，可重建，后端启动会自动建目录）；chown 才是关键——
+#            host 目录默认 root 属主，不 chown 的话容器 UID 1000 写不进、缩略图生成失败
 #   3. docker compose up -d
 #   4. 浏览器访问 http://localhost:8080
 #
@@ -28,12 +31,15 @@ services:
       TAGFLOW_ADMIN_USERNAME: ${TAGFLOW_ADMIN_USERNAME:-admin}
       # 可选：监听端口（默认 8080）
       TAGFLOW_PORT: "8080"
+      # 可选：定时增量扫描间隔（秒，默认 3600，clamp ≥60；详见 doc/部署指南.md）
+      TAGFLOW_SCAN_INTERVAL: "${TAGFLOW_SCAN_INTERVAL:-3600}"
       # 时区（影响日志时间戳与 time 标签生成）
       TZ: Asia/Shanghai
     volumes:
       # === 数据库持久化（named volume；切勿改为 NAS 共享目录，SQLite WAL 不支持网络 FS）===
       - tagflow_data:/app/data
-      # === 缩略图缓存（webp，可重建；可放 NAS）===
+      # === 缩略图缓存（{file_id}.webp，可重建，可放 NAS）===
+      # bind mount：host ./cache 须归 UID 1000 可写（见上方 chown），否则容器写不进
       - ./cache:/app/cache
       # === 资源库挂载示例（按需取消注释，挂载实际照片/视频目录）===
       # 多个目录建议分别挂载到 /library/<name> 下，前端通过添加 Local 类型 library 引用

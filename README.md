@@ -51,6 +51,8 @@ cp .env.example .env
 # 编辑 .env 设置 TAGFLOW_JWT_SECRET（≥ 32B）与 TAGFLOW_ADMIN_PASSWORD（≥ 12B）
 # 建议：openssl rand -hex 32 生成 JWT_SECRET
 
+# cache = 缩略图缓存（webp，可重建）；容器以 UID 1000 运行，host ./cache 须归 1000 可写
+# （后端启动会自动建目录，但 bind mount 下 host 目录默认 root 属主，不 chown 会写不进、缩略图生成失败）
 mkdir -p ./cache && chown -R 1000:1000 ./cache
 docker compose up -d            # 首次构建约 5-15 分钟
 # 浏览器访问 http://localhost:8080
