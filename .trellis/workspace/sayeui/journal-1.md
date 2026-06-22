@@ -575,3 +575,36 @@ Session 聚焦 v0.2.0 发版准备 + 一个发版阻塞 P0 bug 修复。(1) 发�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 18: 孤儿标签清理（删库 + 标签树过滤）
+
+**Date**: 2026-06-22
+**Task**: 孤儿标签清理（删库 + 标签树过滤）
+**Branch**: `main`
+
+### Summary
+
+修复删库/删文件后无效标签残留（标签树显示但查询空，发版阻塞）。两场景：删库（真孤儿 tags 无 file_tags，tags 不在 CASCADE 链残留）+ 扫描删文件（软删 status=0，标签关联离线文件）。诊断发现 get_tag_tree 原 SELECT * FROM tags 不过滤 file_tags/status，是显示根因；scanner mark_as_lost 是有意软删（恢复/移动检测），不能改硬删。修复（标签树过滤 + 删库清理组合）：(1) get_tag_tree 过滤 status=1 文件关联，build_tree 按子树递归剪枝（父在子有在线时显示），同时隐藏删库孤儿 + 离线关联，软删文件恢复时标签自动回归；(2) delete_library 改造：删库前查受影响 tag_ids，删库后调 cleanup_orphan_tag 清理孤儿；(3) 泛化 cleanup_orphan_user_tag→cleanup_orphan_tag（去 user 限制，适用 path/ext/type/time/user 所有类别）。跨库共享标签（#year:2026/Projects/）天然保留（COUNT=0 才删）。spec database-guidelines 加「孤儿标签清理」契约。cargo test 78（+11 新测）/ clippy clean / e2e 14 passed（+2 删库孤儿+软删隐藏恢复）。NAS 复验待用户。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `8b74e76` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
