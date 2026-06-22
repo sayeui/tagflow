@@ -115,7 +115,7 @@ fn deserialize_csv_i32<'de, D: serde::Deserializer<'de>>(de: D) -> Result<Vec<i3
 let options = SqliteConnectOptions::from_str(database_url)?
     .journal_mode(SqliteJournalMode::Wal)
     .foreign_keys(true)
-    .busy_timeout(Duration::from_secs(5));
+    .busy_timeout(Duration::from_secs(15));
 let pool = SqlitePoolOptions::new()
     .max_connections(5)
     .acquire_timeout(Duration::from_secs(3))
@@ -140,10 +140,12 @@ let pool = SqlitePoolOptions::new()
 | scheduler/worker/手动扫描并发写 | 无 busy_timeout | `database is locked` (code 5)，worker 更新任务状态失败、任务卡 Running |
 | 删 library 期望级联删 files/file_tags | foreign_keys 只设一个连接 | 多数连接 CASCADE 不生效，孤儿数据残留 |
 
+**busy_timeout 取值演进**：初始 `5s` 在 e2e（5 图轻并发）够，但 NAS 真实部署 1700+ 文件库扫描（~5000 写全程 5-15s）偶发不够，worker `UPDATE task status` 抢不到锁。当前 `15s` 覆盖整个扫描窗口，对后台异步任务可接受；超大库（万+）若仍偶发，再调高或扫描分批 yield（YAGNI）。**worker 端另加重试兜底**（见下「worker 状态更新重试」）。
+
 **回归测试**（`infra/db.rs` `#[cfg(test)]`）：
-- `test_concurrent_writes_no_deadlock`：8 并发 tokio task 各 INSERT/UPDATE，断言全成功、无 `locked`/`busy`、落库行数正确。
+- `test_concurrent_writes_no_deadlock`：16 并发 tokio task 各 INSERT/UPDATE，断言全成功、无 `locked`/`busy`、落库行数正确（模拟 1700+ 文件库密集写）。
 - `test_foreign_keys_cascade_on_all_connections`：循环多次 `pool.acquire()` 命中**非初始连接**，DELETE library 验证 files/file_tags 级联删（真正证明 per-connection 修复，而非只测初始连接）。
-- `test_connection_pragmas_applied`：读 PRAGMA 断言 `foreign_keys=1` / `busy_timeout=5000` / `journal_mode=wal` 生效。
+- `test_connection_pragmas_applied`：读 PRAGMA 断言 `foreign_keys=1` / `busy_timeout=15000` / `journal_mode=wal` 生效。
 
 #### Wrong（手动 PRAGMA — 两个隐藏 bug）
 ```rust
@@ -160,7 +162,7 @@ sqlx::query("PRAGMA foreign_keys = ON;").execute(&pool).await?;    // ❌ per-co
 let options = SqliteConnectOptions::from_str(database_url)?
     .journal_mode(SqliteJournalMode::Wal)
     .foreign_keys(true)                        // ✅ 每个连接都设
-    .busy_timeout(Duration::from_secs(5));     // ✅ 每个连接都设
+    .busy_timeout(Duration::from_secs(15));    // ✅ 每个连接都设（覆盖 1700+ 文件库扫描窗口）
 let pool = SqlitePoolOptions::new()
     .max_connections(5)
     .acquire_timeout(Duration::from_secs(3))
@@ -168,6 +170,31 @@ let pool = SqlitePoolOptions::new()
 ```
 
 参考实现：`tagflow-core/src/infra/db.rs::init_db`。
+
+### worker 状态更新重试（`UPDATE task status` 遇 SQLITE_BUSY）
+
+`busy_timeout=15s` 是第一道防线，但 NAS 1700+ 文件库扫描密集写时 worker `UPDATE task status`（任务完成/失败两处）仍偶发抢不到锁（边界超时）。worker 端再加重试兜底，确保任务**不卡 Running**（Ok 分支 status=2、Err 分支 status=3 都覆盖）。
+
+**约定**：
+- 两处 `UPDATE task status`（status=2/3）必须走 `update_task_status_with_retry` helper（`engine/worker.rs`），不直接 `sqlx::query(...).execute(...)`。
+- 重试条件：`is_busy_error(e)`——sqlx `DatabaseError` code == `"5"` 或 message 含 "locked"/"busy"（大小写无关）。**非 busy 错误立即返回，不重试**（避免无谓退避）。
+- 退避：3 次重试，`500ms / 1s / 2s`；重试中 `debug!` 记进度，重试用尽才 `error!`（调用方）。
+- **不动其他 worker 逻辑**：任务执行、轮询循环不变；只改完成态的 UPDATE 路径。
+
+**为什么不直接调大 busy_timeout**：busy_timeout 是 SQLite 内部 retry，对超长密集写窗口不可控；worker 应用层重试是确定性兜底，无论锁持续多久都能恢复（除非数据库真坏了）。两层叠加：busy_timeout 挡住绝大多数短冲突，重试挡住罕见长冲突。
+
+**错误矩阵**：
+| 场景 | 缺失防线 | 表现 |
+|---|---|---|
+| NAS 1700+ 文件扫描、worker UPDATE 抢锁失败 | 无 worker 重试 | `error!` 后任务卡 Running（status=1 永远不更新） |
+| 短暂写锁冲突 | 无 busy_timeout | 立即 `SQLITE_BUSY`，每次都走重试（无谓退避） |
+
+**回归测试**（`engine/worker.rs` `#[cfg(test)]`）：
+- `test_is_busy_error_detects_locked_message`：构造含 "locked"/"busy"/"DATABASE IS LOCKED" 消息，断言 `is_busy_error` 判 true（大小写无关）。
+- `test_is_busy_error_rejects_non_busy`：PoolClosed / 配置错误 / 无 locked 字样，断言判 false（不误触发重试）。
+- `test_update_status_no_retry_on_non_busy_error`：UPDATE 不存在的任务（Ok 0 行），断言立即返回、`<1s`（验证非 busy 路径不退避）。
+
+参考实现：`engine/worker.rs::is_busy_error` / `update_task_status_with_retry`。
 
 ### 孤儿标签清理（删库 + 标签树过滤在线文件）
 

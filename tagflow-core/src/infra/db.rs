@@ -8,7 +8,8 @@ use tracing::info;
 /// 使用 [`SqliteConnectOptions`] 对 pool **每个连接**统一配置：
 /// - `journal_mode(Wal)`：WAL 模式（db 级，持久）
 /// - `foreign_keys(true)`：强制外键（per-connection PRAGMA，必须每个连接都设）
-/// - `busy_timeout(5s)`：写锁等待 5s 重试，缓解 scheduler/worker/手动扫描并发写冲突
+/// - `busy_timeout(15s)`：写锁等待 15s 重试，覆盖 1700+ 文件库扫描的密集写窗口
+///   （scanner ~5000 写全程约 5-15s，避免 worker 更新任务状态偶发 `SQLITE_BUSY` 超时）
 ///
 /// 注意：手动执行 `PRAGMA foreign_keys=ON` 只对**当前执行它的连接**生效，
 /// pool 其余连接 `foreign_keys=OFF` → `ON DELETE CASCADE` 不强制。
@@ -17,7 +18,7 @@ pub async fn init_db(database_url: &str) -> anyhow::Result<SqlitePool> {
     let options = SqliteConnectOptions::from_str(database_url)?
         .journal_mode(SqliteJournalMode::Wal)
         .foreign_keys(true)
-        .busy_timeout(Duration::from_secs(5));
+        .busy_timeout(Duration::from_secs(15));
 
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
@@ -28,7 +29,7 @@ pub async fn init_db(database_url: &str) -> anyhow::Result<SqlitePool> {
     // 执行迁移脚本
     sqlx::migrate!("./migrations").run(&pool).await?;
 
-    info!("数据库连接池就绪: WAL + foreign_keys=ON + busy_timeout=5s (max_connections=5)");
+    info!("数据库连接池就绪: WAL + foreign_keys=ON + busy_timeout=15s (max_connections=5)");
 
     Ok(pool)
 }
@@ -66,12 +67,12 @@ mod tests {
         }
     }
 
-    /// 并发写不锁：spawn 8 个并发任务同时写 `tasks` 表，
+    /// 并发写不锁：spawn 16 个并发任务同时写 `tasks` 表（每任务 10 INSERT + 10 UPDATE），
     /// 断言全部成功且无 `database is locked` 错误。
     ///
     /// 修复前（busy_timeout 未设）：并发写会立即返回 `SQLITE_BUSY`
     /// → 报 `database is locked (code: 5)`。
-    /// 修复后（busy_timeout=5s）：写冲突在 5s 内重试通过。
+    /// 修复后（busy_timeout=15s）：写冲突在 15s 内重试通过，覆盖 1700+ 文件库扫描的密集写窗口。
     #[tokio::test]
     async fn test_concurrent_writes_no_deadlock() {
         let url = temp_db_url();
@@ -92,8 +93,8 @@ mod tests {
         let pool = Arc::new(pool);
         let mut handles = Vec::new();
 
-        // 8 个并发任务，每个连续做多次 INSERT + UPDATE（竞争写锁）
-        for task_idx in 0..8 {
+        // 16 个并发任务，每个连续做多次 INSERT + UPDATE（竞争写锁）
+        for task_idx in 0..16 {
             let p = pool.clone();
             handles.push(tokio::spawn(async move {
                 for i in 0..10 {
@@ -147,12 +148,12 @@ mod tests {
 
         assert_eq!(failures, 0, "存在失败的并发任务");
 
-        // 验证 INSERT 真的落库（8 * 10 = 80 行）
+        // 验证 INSERT 真的落库（16 * 10 = 160 行）
         let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tasks")
             .fetch_one(&*pool)
             .await
             .expect("COUNT 查询失败");
-        assert_eq!(count, 80, "tasks 行数应为 80，实际 {}", count);
+        assert_eq!(count, 160, "tasks 行数应为 160，实际 {}", count);
 
         cleanup_db(&url);
     }
@@ -284,7 +285,7 @@ mod tests {
             .fetch_one(&mut *conn)
             .await
             .expect("PRAGMA busy_timeout 失败");
-        assert_eq!(busy, 5000, "busy_timeout 应为 5000ms，实际 {}ms", busy);
+        assert_eq!(busy, 15000, "busy_timeout 应为 15000ms，实际 {}ms", busy);
 
         let journal: String = sqlx::query_scalar("PRAGMA journal_mode")
             .fetch_one(&mut *conn)
