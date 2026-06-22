@@ -1,0 +1,3 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "核对 busy_timeout=15s、连接配置契约 spec 值已更新、worker 重试约定已记"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "核对 cargo test 不回归（78+）、worker 重试单测、并发压测、clippy 干净"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "核对 worker SQLITE_BUSY 重试逻辑正确（检测 code 5/locked、退避、最终失败路径）"}

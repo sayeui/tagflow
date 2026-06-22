@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "SQLite 连接配置契约——busy_timeout 是其中一部分，本次 5s→15s；spec 的值与 worker 重试约定要同步更新"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "单测规范（worker 重试逻辑、并发写压测）、cargo test/clippy 不回归"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "worker 遇 SQLITE_BUSY 重试的错误处理、重试与最终失败的边界"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "重试 debug 日志、最终失败 error 日志、busy_timeout 启动 info"}
