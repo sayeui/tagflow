@@ -442,3 +442,36 @@ NAS 部署核对发现自动标签引擎只有 path 一维、无多标签过滤�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 14: 引入 Playwright e2e 测试框架
+
+**Date**: 2026-06-22
+**Task**: 引入 Playwright e2e 测试框架
+**Branch**: `main`
+
+### Summary
+
+为 TagFlow 引入 Playwright e2e 测试框架。brainstorm 收敛 PRD（档位 B 范围：登录/列表/搜索/视图/标签树/扫描/缩略图；内置小图片夹具；data-testid 必补；Q4 spec 同步=是）。新增 tagflow-e2e/ 独立包：webServer 经 env 注入临时 DB/cache/端口/账号起隔离后端（零后端改动），globalSetup seed 资源库并扫描 fixtures/library。前端 FileGrid/FileList/TagItem/Home 补 data-testid。10 用例全过（login/files/library-scan/thumbnails，连跑无 flake），隔离确认真实 db/cache 未污染。缩略图用例双状态稳定 + ffmpeg skip 兜底；409 并发防护作为已知缺口透明记录。同步 frontend quality-guidelines 测试章节。途中发现并修复 .gitignore 误加 tagflow-e2e 行的红旗。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b9bb4be` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

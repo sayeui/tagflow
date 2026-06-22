@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 13
-- **Last Active**: 2026-06-16
+- **Total Sessions**: 14
+- **Last Active**: 2026-06-22
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~479 | Active |
+| `journal-1.md` | ~477 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 14 | 2026-06-22 | 引入 Playwright e2e 测试框架 | `b9bb4be` | `main` |
 | 13 | 2026-06-16 | 文件视图增强——真实 e2e 验证与收尾 | `9557711` | `main` |
 | 12 | 2026-06-16 | 更新 README：去 AI 介绍、功能清单、里程碑路线图与 v0.2.0 规划 | `e27deef` | `main` |
 | 11 | 2026-06-16 | 手动标签（user tag） | `30b9f1c` | `main` |
