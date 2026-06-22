@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 18
+- **Total Sessions**: 19
 - **Last Active**: 2026-06-22
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~610 | Active |
+| `journal-1.md` | ~643 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 19 | 2026-06-22 | 加强 SQLite 写并发（busy_timeout 15s + worker 重试） | `a77c900` | `main` |
 | 18 | 2026-06-22 | 孤儿标签清理（删库 + 标签树过滤） | `8b74e76` | `main` |
 | 17 | 2026-06-22 | 修复非媒体文件缩略图 404 | `1339ad9` | `main` |
 | 16 | 2026-06-22 | 发版准备 + 修复 SQLite database is locked | `9b13516`, `78685b9` | `main` |

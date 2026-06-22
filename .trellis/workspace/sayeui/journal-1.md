@@ -608,3 +608,36 @@ Session 聚焦 v0.2.0 发版准备 + 一个发版阻塞 P0 bug 修复。(1) 发�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 19: 加强 SQLite 写并发（busy_timeout 15s + worker 重试）
+
+**Date**: 2026-06-22
+**Task**: 加强 SQLite 写并发（busy_timeout 15s + worker 重试）
+**Branch**: `main`
+
+### Summary
+
+修复 NAS 1700+ 文件库扫描偶发 database is locked。fix-sqlite-locked 的 5s busy_timeout 在 e2e（5 图轻并发）够，但真实大库密集写（~5000 写/全程 5-15s）偶发不够，worker UPDATE task status 抢不到锁（其他两 fix 生效佐证修复版已部署，排除旧镜像）。修复双防线：(1) busy_timeout 5s→15s（infra/db.rs，覆盖扫描全程写窗口）；(2) worker UPDATE task status 遇 SQLITE_BUSY 退避重试 3 次（500ms/1s/2s）兜底，任务不卡 Running；抽 is_busy_error（检测 SQLite code 5/locked）+ update_task_status_with_retry helper，两处 UPDATE（status=2/3）共用；非 busy 错误立即返回不重试。测试：is_busy_error 判定 + 非 busy 不重试 + 并发压测 16 task（160 写）。spec database-guidelines busy_timeout 5s→15s + 新增「worker 状态更新重试」约定。cargo test 81/clippy/fmt clean。附：rust-analyzer 曾误报 error.rs:205（文件不存在，cargo check 通过，忽略）。NAS 复验待用户。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `a77c900` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
