@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "FileGrid.vue 改动遵守 script setup + Composition API；新增 isMediaFile/MEDIA_EXTENSIONS 常量的写法"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "FileGrid 改动合规：保留 data-testid、display:none+lazy 坑不复发（仍用 opacity）、npm run build 干净；FileGrid 缩略图 opacity 历史坑是直接相关上下文"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "FileItem.extension 是 string|null，isMediaFile 参数类型与 null 处理；MEDIA_EXTENSIONS 类型"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "FileItem 类型来源（useResourceStore），extension 字段镜像后端 DTO"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "核心：前端 MEDIA_EXTENSIONS 必须与后端 scanner MEDIA_EXTENSIONS 逐字一致（跨层契约）；改动任一方都要同步"}
