@@ -475,3 +475,36 @@ NAS 部署核对发现自动标签引擎只有 path 一维、无多标签过滤�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 15: 定时增量扫描（v0.2.0 自动同步）+ git 身份配置
+
+**Date**: 2026-06-22
+**Task**: 定时增量扫描（v0.2.0 自动同步）+ git 身份配置
+**Branch**: `main`
+
+### Summary
+
+v0.2.0 第一块「定时增量扫描」完整落地。brainstorm 收敛 5 决策：全局单定时器 + 全局 env TAGFLOW_SCAN_INTERVAL 间隔（默认 3600 clamp ≥60）+ 启动即首轮 + 后端 scheduler/前端展示下次扫描 + e2e 极短间隔验证。PR1 后端：scheduler（engine/scheduler.rs，仿 worker spawn 循环，首轮立即+interval，单库失败 continue 不退出）+ 抽 engine 层 scan_library_job/run_scan_with_lock_held（trigger_scan 与 scheduler 共用同一份扫描逻辑，去重）+ 409 锁 SCANNING 从 api 移至 engine 层（api/scheduler 同库不并发）+ trigger_scan 保持同步 409 语义（不跨 await）+ config clamp。PR2 前端：LibraryResponse 加 scan_interval_secs + Libraries.vue 展示「预计下次扫描」（手动触发按钮保留不动）。PR3 e2e：scheduled-scan.spec 验证无手动触发自动扫入新文件+删除自动移除；TAGFLOW_E2E_FAST_SCAN=1 escape hatch（仅 tagflow-e2e 绕 clamp，production 绝不设）；library-scan 加 409 retry wrapper 容忍 scheduler 撞锁。验证：cargo test 64+1+4 / clippy --all-targets clean / npm run build clean / e2e 11×3 连跑无 flake。spec：backend quality-guidelines 新增「后台任务与定时扫描契约」节（含 escape hatch 安全阀约定）。附带：本 session 还配置了 git 身份按 remote 自动切换（~/.gitconfig hasconfig:remote，全局保留公司身份给 GitLab、GitHub remote 自动切个人 noreply），解决历史 commit 不归属 GitHub 账号问题；memory 已记录该环境约定。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `376c184` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
