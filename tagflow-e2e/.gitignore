@@ -1,0 +1,10 @@
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+# 防止误提交任何本地 DB/cache（测试隔离应在 OS 临时目录，但兜底）
+*.db
+*.db-shm
+*.db-wal
+cache/

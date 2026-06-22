@@ -18,7 +18,7 @@ Guidelines for the **tagflow-ui** Vue 3 frontend (TypeScript strict + Vite + Pin
 | [Component Guidelines](./component-guidelines.md) | script setup, typed props/emits, Tailwind-only styling | Filled |
 | [Hook Guidelines](./hook-guidelines.md) | no composables yet — data flows API → store → view | Filled |
 | [State Management](./state-management.md) | options-style Pinia stores, auth/localStorage ownership | Filled |
-| [Quality Guidelines](./quality-guidelines.md) | vue-tsc gate, forbidden patterns, manual test bar | Filled |
+| [Quality Guidelines](./quality-guidelines.md) | vue-tsc gate, forbidden patterns, Playwright e2e + `data-testid` conventions | Filled |
 | [Type Safety](./type-safety.md) | strict TS, snake_case DTO mirrors, no any | Filled |
 
 ---

@@ -56,6 +56,7 @@ onUnmounted(() => {
     <aside class="w-64 border-r border-gray-200 bg-white flex flex-col">
       <div class="p-4">
         <button
+          data-testid="all-files-button"
           @click="store.clearSelection()"
           class="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors text-sm font-medium text-gray-700 flex items-center"
           :class="{ 'bg-blue-50 text-blue-600': store.selectedTagIds.length === 0 }"
@@ -65,8 +66,8 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <div class="flex-1 overflow-y-auto px-2">
-        <div v-for="group in store.groupedTags" :key="group.category" class="mb-3">
+      <div data-testid="tag-tree" class="flex-1 overflow-y-auto px-2">
+        <div v-for="group in store.groupedTags" :key="group.category" class="mb-3" :data-tag-category="group.category">
           <!-- 分组标题（容器，不可勾选） -->
           <div class="px-3 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wide">
             {{ group.label }}
@@ -129,6 +130,7 @@ onUnmounted(() => {
             <input
               v-model="keywordInput"
               type="text"
+              data-testid="search-input"
               placeholder="搜索文件名..."
               class="w-56 pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300 transition-colors"
             />
@@ -144,9 +146,13 @@ onUnmounted(() => {
           </div>
 
           <!-- 视图切换 -->
-          <div class="flex items-center gap-1 border border-gray-200 rounded-lg p-0.5">
+          <div
+            class="flex items-center gap-1 border border-gray-200 rounded-lg p-0.5"
+            data-testid="view-switcher"
+          >
             <button
               @click="setViewMode('grid')"
+              data-testid="view-grid-button"
               class="p-1.5 rounded transition-colors"
               :class="viewMode === 'grid' ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-100'"
               title="卡片视图"
@@ -155,6 +161,7 @@ onUnmounted(() => {
             </button>
             <button
               @click="setViewMode('list')"
+              data-testid="view-list-button"
               class="p-1.5 rounded transition-colors"
               :class="viewMode === 'list' ? 'bg-blue-50 text-blue-600' : 'text-gray-500 hover:bg-gray-100'"
               title="列表视图"
@@ -176,7 +183,11 @@ onUnmounted(() => {
         </div>
       </header>
 
-      <section class="flex-1 overflow-hidden">
+      <section
+        class="flex-1 overflow-hidden"
+        :data-view-mode="viewMode"
+        data-testid="file-area"
+      >
         <FileGrid
           v-if="viewMode === 'grid'"
           :files="store.files"

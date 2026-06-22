@@ -18,6 +18,10 @@ const collapsed = ref(false)
 <template>
   <div class="select-none">
     <div
+      :data-testid="`tag-node`"
+      :data-tag-id="node.id"
+      :data-tag-name="node.name"
+      :data-tag-category="node.category"
       class="flex items-center p-2 hover:bg-gray-100 rounded transition-colors"
       :style="{ paddingLeft: `${depth * 12 + 8}px` }"
     >

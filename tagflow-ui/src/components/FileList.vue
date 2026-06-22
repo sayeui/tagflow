@@ -77,6 +77,9 @@ const onScrollEnd = () => {
       v-slot="{ item }"
     >
       <div
+        data-testid="file-card"
+        :data-filename="item.filename"
+        :data-file-id="item.id"
         @click="store.openFile(item.id)"
         class="h-12 grid grid-cols-[1fr_120px_160px] gap-4 items-center px-6 border-b border-gray-100 hover:bg-blue-50 transition-colors cursor-pointer"
       >

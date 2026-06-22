@@ -91,6 +91,9 @@ const onScrollEnd = () => {
       <div
         v-for="file in item.items"
         :key="file.id"
+        data-testid="file-card"
+        :data-filename="file.filename"
+        :data-file-id="file.id"
         @click="store.openFile(file.id)"
         class="flex flex-col items-center p-3 border border-gray-200 rounded-lg hover:shadow-md hover:border-blue-300 transition-all cursor-pointer bg-white"
       >
