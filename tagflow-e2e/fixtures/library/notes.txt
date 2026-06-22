@@ -1,0 +1,6 @@
+TagFlow e2e 非媒体文件夹具。
+
+本文件用于验证：前端 FileGrid 对非媒体文件（文本/代码/归档等）不应请求缩略图，
+只显图标。后端 MEDIA_EXTENSIONS 不含 txt，scanner 不会为 txt 入列缩略图任务，
+故 GET /files/:id/thumbnail 会返 404；前端按 MEDIA_EXTENSIONS 判断 v-if，
+非媒体不渲染 <img> → 浏览器不发请求 → console 不刷 404。

@@ -29,10 +29,16 @@ test.describe('缩略图懒加载', () => {
   test('GET /files/:id/thumbnail 最终返回 200 + image/webp（覆盖 404→200 转换或稳定 200）', async () => {
     const ctx = await newAuthedContext()
     try {
-      // 取一个已入库的文件 id（用 seeded 库，globalSetup 已 seed 5 个图片）。
-      const { items } = await fetchFiles(ctx, { limit: 10 })
-      expect(items.length, 'seeded 库应有文件可取').toBeGreaterThan(0)
-      const fileId = items[0].id
+      // 取一个已入库的**媒体**文件 id（只有媒体文件后端才入列缩略图任务）。
+      // fixtures 含非媒体 notes.txt，且 GET /files 按 mtime DESC 排序，notes.txt 可能
+      // 排在最前；若取到非媒体文件会永远 404，用例会超时。故必须按扩展名过滤。
+      const { items } = await fetchFiles(ctx, { limit: 50 })
+      const mediaExt = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'mp4', 'mov', 'm4v', 'mkv', 'avi', 'webm']
+      const mediaItem = items.find(
+        (f) => !!f.extension && mediaExt.includes(f.extension.toLowerCase()),
+      )
+      expect(mediaItem, 'seeded 库应有至少一个媒体文件可取').toBeDefined()
+      const fileId = mediaItem!.id
 
       // 探测当前态：决定走"404→200 转换"还是"稳定 200"路径。
       const probe = await fetchThumbnail(ctx, fileId)

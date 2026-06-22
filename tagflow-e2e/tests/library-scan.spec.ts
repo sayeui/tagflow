@@ -24,7 +24,7 @@ import { getSeededLibraryId } from '../lib/env'
  *   - 不存在的 library id（404）：用大随机 id 触发，必然 404，无时序依赖，稳定。
  *   - 409 并发：seeded 库的扫描在 globalSetup 时已完成（SCANNING 锁已释放）；
  *     再触发会立即拿到 202 而非 409。要稳定触发 409 需精确卡在 scan_library 执行中
- *     的窗口——对小夹具（5 张图 < 1s 扫完）几乎不可能，且重试会危及隔离。
+ *     的窗口——对小夹具（6 个文件 < 1s 扫完）几乎不可能，且重试会危及隔离。
  *     故 409 不在自动化覆盖范围，已知缺口留给后续手测/集成测试。
  *
  * scheduled-scan PR3 引入的时序变化：
@@ -53,7 +53,7 @@ async function triggerScanAcceptingSchedulerConflict(
   for (let i = 0; i < maxAttempts; i++) {
     resp = await triggerScan(ctx, libraryId)
     if (resp.status() !== 409) return resp
-    // scheduler 持有锁：等 300ms 让它扫完（5 张图 <100ms），再试
+    // scheduler 持有锁：等 300ms 让它扫完（6 个文件 <100ms），再试
     await new Promise((r) => setTimeout(r, 300))
   }
   // 三次都 409：返回最后一次让调用方断言失败暴露问题（而非在这里 throw）

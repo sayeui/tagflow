@@ -19,7 +19,7 @@ import { FIXTURES_LIBRARY_DIR, getSeededLibraryId } from '../lib/env'
  *
  * 夹具卫生（关键）：
  *   - 投入的新文件落在 fixtures/library/Photos/new_auto.jpg（Git 未跟踪，但会留在
- *     工作区）；afterEach 必须删除，保持 fixtures/library 原 5 文件原貌。
+ *     工作区）；afterEach 必须删除，保持 fixtures/library 原 6 文件原貌。
  *   - 用 copyFileSync 从 Photos/sunset.jpg 复制（保证是合法 jpg，扫描器能处理）。
  *   - 即便 beforeAll/测试中途抛错，afterEach 也会兜底删除（fs.rmSync force:true）。
  *

@@ -6,8 +6,8 @@
  *   2. 等待 /api/health 可达（双保险；webServer.url 已做一次，但 globalSetup
  *      里再 ping 一次便于日志观测与失败定位）。
  *   3. seed 隔离后端：登录拿 token → 创建指向 fixtures/library 的本地资源库
- *      → 触发扫描 → 轮询 GET /api/v1/files 直到 5 个图片入库。token 与
- *      library id 写入 process.env，供用例复用。
+ *      → 触发扫描 → 轮询 GET /api/v1/files 直到 6 个文件入库（5 张图片 + 1 个
+ *      非媒体 notes.txt）。token 与 library id 写入 process.env，供用例复用。
  *
  * 只等"文件入库"，不等缩略图（缩略图是 worker 5s 轮询异步生成，PR3 才关心）。
  */
@@ -150,7 +150,7 @@ async function triggerScan(ctx: ApiCtx, token: string, libraryId: number): Promi
 /** 轮询 GET /api/v1/files 直到文件数 >= EXPECTED_FILE_COUNT 或超时。
  *  注意：只看文件入库（status=1 的行），不看缩略图。 */
 async function waitForFiles(ctx: ApiCtx, token: string): Promise<void> {
-  const maxAttempts = 30 // 30 × 1s = 30s（扫描本地 5 个小图通常 < 1s）
+  const maxAttempts = 30 // 30 × 1s = 30s（扫描本地 6 个小文件通常 < 1s）
   let lastTotal = -1
   for (let i = 0; i < maxAttempts; i++) {
     const resp = await ctx.get('/api/v1/files?limit=1', {

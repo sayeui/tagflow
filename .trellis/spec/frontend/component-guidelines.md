@@ -81,6 +81,22 @@ Helper functions are plain consts inside `<script setup>` (see `getFileIcon`, `f
 
 ---
 
+## 缩略图媒体白名单（跨层契约）
+
+`FileGrid.vue` 只对**媒体文件**渲染缩略图 `<img>`（`v-if="isMediaFile(file.extension)"`），避免对文本/PDF/代码/归档等非媒体文件请求 `GET /files/:id/thumbnail` 永远 404。
+
+**跨层契约（关键）**：前端 `MEDIA_EXTENSIONS` 必须与后端 `tagflow-core/src/engine/scanner/mod.rs:141` 的 `MEDIA_EXTENSIONS` **逐字一致**——后端是 single source of truth（决定哪些文件入列缩略图任务），前端只是镜像（决定哪些文件请求）。改任一方都要同步另一方，否则要么前端多请求（非媒体 404 刷屏），要么前端漏请求（媒体不显示缩略图）。
+
+后端白名单：`jpg/jpeg/png/gif/webp/bmp` + `mp4/mov/m4v/mkv/avi/webm`。**不含 svg**（svg 不生成缩略图）。
+
+**图标白名单 ≠ 缩略图白名单**：`getFileIcon` 的 `imageExts`（含 svg，用于选图标）与 `MEDIA_EXTENSIONS`（不含 svg，用于决定是否请求缩略图）语义不同，各自独立，不要合并。
+
+参考实现：`FileGrid.vue` 的 `MEDIA_EXTENSIONS` + `isMediaFile` + `<img v-if>`。e2e 防回归：`files.spec.ts`「非媒体文件不发起缩略图请求」用例（`page.on('request')` 收集 thumbnail 请求，断言非媒体 id 不在其中）。
+
+> **Warning**：媒体文件缩略图「生成中」的 404 是**预期**的（worker 5s 异步生成，期间 `@error` 兜底显图标），不在本契约范围；本契约只保证**非媒体文件永不请求**。
+
+---
+
 ## Accessibility
 
 No formal a11y standard is enforced yet. Existing patterns to keep: `:alt` on images, `:title` on truncated filenames (`FileGrid.vue:83`). Interactive divs with `@click` are the current norm (known debt — prefer `<button>` for new work when it costs nothing).

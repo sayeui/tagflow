@@ -107,8 +107,8 @@ export function getSeededLibraryId(): number {
   return n
 }
 
-/** fixtures 下应有 5 个图片文件（见 prd.md 夹具清单）。 */
-export const EXPECTED_FILE_COUNT = 5
+/** fixtures 下应有 6 个文件（5 个图片 + 1 个非媒体文本 notes.txt，见 prd.md 夹具清单）。 */
+export const EXPECTED_FILE_COUNT = 6
 
 /** fixtures/library 的绝对路径（后续 PR 用于 seed 资源库）。 */
 export const FIXTURES_LIBRARY_DIR = path.resolve(__dirname, '..', 'fixtures', 'library')
