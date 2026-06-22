@@ -59,6 +59,8 @@ npm run build                  # 构建生产版本
 - `TAGFLOW_JWT_SECRET`：JWT 签名密钥（HS256，要求 ≥ 32 字节）。debug 构建缺失时回退开发默认值并打印 warn；release 构建缺失或长度不足将启动失败。更换密钥会使所有已签发 token 失效，用户需重新登录。
 - `TAGFLOW_ADMIN_PASSWORD`：默认管理员密码（首次启动且 `users` 表为空时创建管理员用，要求 ≥ 12 字节）。debug 构建缺失时回退开发默认值 `tagflow_dev_only_admin_pw` 并打印 warn；release 构建缺失或长度不足将启动失败。已有用户的部署不触发该校验。
 - 缩略图缓存目录：`./cache`（启动时由 worker 使用）
+- `TAGFLOW_SCAN_INTERVAL`：定时增量扫描间隔（秒，默认 3600）。后台 scheduler（`engine/scheduler.rs`，`main.rs` 用 `tokio::spawn` 启动）启动后**立即首轮**扫描所有库，之后每 N 秒一轮；新增/删除文件下一轮自动同步进库。低于 60 的值 clamp 回 60（避免高频扫描压满 IO），非法值（0/负数/非数字）回退到 3600。与手动 `POST /libraries/:id/scan` 共享同一把进程内 409 锁（`engine::scanner::scan_library_job`），同库不并发；进程重启锁丢失但 scheduler 重启也会重新首轮扫描。
+- `TAGFLOW_E2E_FAST_SCAN`：仅供 TagFlow 自带 Playwright 套件（`tagflow-e2e`）使用，设为 `1` 时绕过 `TAGFLOW_SCAN_INTERVAL` 的 60s 下限 clamp，让亚分钟级间隔（如 2s）真正生效以验证 scheduler 行为。**production / 开发环境绝不应设置。**
 
 ### 日志调试
 

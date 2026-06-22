@@ -76,6 +76,19 @@ npm run dev
 
 > Release 构建（`cargo build --release`）产出的单二进制已通过 `rust-embed` 嵌入前端产物，可脱离 npm 独立运行。
 
+### 运行时配置（环境变量）
+
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `TAGFLOW_PORT` | `8080` | API 监听端口 |
+| `TAGFLOW_JWT_SECRET` | debug 构建回退开发默认值 | JWT 签名密钥（HS256，要求 ≥ 32 字节）。release 构建缺失或长度不足将启动失败。更换密钥会使所有已签发 token 失效 |
+| `TAGFLOW_ADMIN_PASSWORD` | debug 构建回退开发默认值 | 首次启动且 `users` 表为空时创建管理员用密码（要求 ≥ 12 字节）。release 构建缺失或长度不足将启动失败；已有用户的部署不触发该校验 |
+| `TAGFLOW_DB_PATH` | `tagflow.db` | SQLite 数据库文件路径（自动创建，启用 WAL） |
+| `TAGFLOW_CACHE_DIR` | `./cache` | 缩略图缓存目录（worker 启动时使用） |
+| `TAGFLOW_SCAN_INTERVAL` | `3600` | 定时增量扫描间隔（秒）。后台 scheduler 启动后**立即首轮**扫描所有资源库，之后每 N 秒一轮；新增/删除文件在下一轮自动同步进库。低于 60 的值会被 clamp 回 60（避免高频扫描压满 IO）；非法值（0/负数/非数字）回退到 3600。与手动 `POST /libraries/:id/scan` 共享同一把 409 并发锁，同库不会并发扫描 |
+
+> 生产部署完整清单（含 Docker 卷规划、备份、密钥生成）见 [`doc/部署指南.md`](doc/部署指南.md)。
+
 ---
 
 ## 架构设计
@@ -264,7 +277,7 @@ PathTagger 解析
 | **资源库管理** | 本地资源库 CRUD、连接测试、扫描触发（同库并发返回 409 防护） | ✅ |
 |  | WebDAV 资源库（OpenDAL + 凭据加密） | 📅 |
 | **文件扫描** | 增量扫描、基于哈希的文件移动检测、扫描时为媒体文件入列缩略图任务 | ✅ |
-|  | 定时增量扫描（后台自动同步） | 📅 |
+|  | 定时增量扫描（后台 scheduler 自动同步，`TAGFLOW_SCAN_INTERVAL` 可配） | ✅ |
 | **标签系统** | 层级标签树、路径自动建标签、`path` / `type` / `ext` / `time` 四维自动标签 | ✅ |
 |  | 多标签 AND 分面过滤、递归包含子标签子树 | ✅ |
 |  | 手动用户标签（user tag）打标签 / 移除 / 空节点自动清理 | ✅ |
@@ -302,8 +315,8 @@ PathTagger 解析
 
 **v0.2.0 Beta —— 多源接入与自动同步**（下一个里程碑）
 
+- **定时增量扫描** ✅ —— 后台 scheduler 每 `TAGFLOW_SCAN_INTERVAL` 秒自动扫描所有资源库，启动后立即首轮；与手动 `POST /scan` 共享 409 并发锁，同库不并发
 - **WebDAV 资源库** —— OpenDAL `services-webdav` + AES 凭据加密，接入 NAS / 云盘
-- **定时增量扫描** —— 后台定时任务自动增量扫描资源库，文件变更无需手动触发
 
 > 目标闭环：接入 WebDAV 库 → 自动定时同步 → 标签 / 浏览 / 预览全部可用。
 

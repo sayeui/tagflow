@@ -13,6 +13,9 @@ interface Library {
   protocol: string
   base_path: string
   last_scanned_at: string | null
+  /** 全局扫描间隔（秒），后端来自 TAGFLOW_SCAN_INTERVAL（clamp ≥60）。
+   *  前端据此推算「预计下次扫描」= last_scanned_at + scan_interval_secs。 */
+  scan_interval_secs: number
 }
 
 const libraries = ref<Library[]>([])
@@ -209,6 +212,16 @@ const formatDate = (dateStr: string | null) => {
   return new Date(dateStr).toLocaleString('zh-CN')
 }
 
+/** 预计下次扫描 = last_scanned_at + scan_interval_secs。
+ *  last 为空（库从未被扫过）显示「等待首次扫描」；间隔非正则回到「未知」。 */
+const formatNextScan = (lastScannedAt: string | null, scanIntervalSecs: number) => {
+  if (!lastScannedAt) return '等待首次扫描'
+  if (!scanIntervalSecs || scanIntervalSecs <= 0) return '未知'
+  const last = new Date(lastScannedAt).getTime()
+  const next = new Date(last + scanIntervalSecs * 1000)
+  return next.toLocaleString('zh-CN')
+}
+
 const goBack = () => {
   router.push('/')
 }
@@ -359,6 +372,9 @@ onMounted(fetchLibraries)
             </div>
             <div class="mt-1 text-xs text-gray-400">
               最后扫描: {{ formatDate(lib.last_scanned_at) }}
+            </div>
+            <div class="mt-0.5 text-xs text-gray-400">
+              预计下次扫描: {{ formatNextScan(lib.last_scanned_at, lib.scan_interval_secs) }}
             </div>
           </div>
 

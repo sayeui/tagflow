@@ -48,6 +48,13 @@ const backendEnv: Record<string, string> = {
   TAGFLOW_ADMIN_USERNAME: ADMIN_USERNAME,
   TAGFLOW_ADMIN_PASSWORD: ADMIN_PASSWORD,
   TAGFLOW_JWT_SECRET: JWT_SECRET,
+  // 定时扫描间隔压到 2s，让 scheduled-scan.spec.ts 能在可观测窗口内验证
+  // 「无手动触发，scheduler 自动扫入新文件」。其余 spec 不依赖扫描时序，幂等增量
+  // 扫描不影响其断言（既不新增也不删除文件）。
+  // 后端 infra/config.rs 默认会把 <60s 的间隔 clamp 到 60s（生产保护）；这里同时
+  // 开启 TAGFLOW_E2E_FAST_SCAN=1 绕过 clamp，仅供本套 e2e 使用，production 不应设置。
+  TAGFLOW_SCAN_INTERVAL: '2',
+  TAGFLOW_E2E_FAST_SCAN: '1',
   // 降低日志噪音（保留 info 及以上）
   RUST_LOG: 'tagflow_core=info,axum=warn',
 }

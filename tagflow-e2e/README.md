@@ -17,6 +17,10 @@ TagFlow 的 Playwright 端到端测试。通过环境变量驱动一个**隔离�
 | `TAGFLOW_PORT` | `18080`（`lib/env.ts` `TEST_PORT`） |
 | `TAGFLOW_ADMIN_PASSWORD` | 固定测试密码（≥12 字节） |
 | `TAGFLOW_JWT_SECRET` | 固定测试密钥（≥32 字节） |
+| `TAGFLOW_SCAN_INTERVAL` | `2`（让 scheduler 每 2s 扫一轮，使 `scheduled-scan.spec.ts` 能在可观测窗口内验证「无手动触发，scheduler 自动扫入新文件」） |
+| `TAGFLOW_E2E_FAST_SCAN` | `1`（绕过后端 60s 的生产 clamp，让上一行的 2s 真正生效。仅供本套 e2e 使用，production 不应设置） |
+
+> scheduler 每 2s 频扫 e2e-fixtures 库不影响其它用例：增量扫描幂等（mtime/size 未变即跳过），其它用例不新增/删除文件。`library-scan.spec.ts` 的手动 202 断言用 `triggerScanAcceptingSchedulerConflict` 包了短重试，容忍与 scheduler 的瞬时 409 冲突（后端契约未变，只是放宽了测试侧的时序假设）。
 
 跑完用例后 `globalTeardown` 删除临时目录。仓库内真实的 `tagflow-core/tagflow.db`
 与 `./cache` 不会被触碰。
@@ -84,7 +88,8 @@ tagflow-e2e/
 │   ├── login.spec.ts          # PR1：登录 smoke
 │   ├── files.spec.ts          # PR2：文件列表 / 搜索 / 视图切换 / 标签树
 │   ├── library-scan.spec.ts   # PR3：资源库扫描触发（202 / 404 / 生命周期）
-│   └── thumbnails.spec.ts     # PR3：缩略图 404→200 轮询（ffmpeg skip 兜底）
+│   ├── thumbnails.spec.ts     # PR3：缩略图 404→200 轮询（ffmpeg skip 兜底）
+│   └── scheduled-scan.spec.ts # 定时扫描 PR3：无手动触发，scheduler 自动扫入新文件
 └── fixtures/library/      # 内置小图片夹具（嵌套目录 + 中英文文件名）
     ├── Projects/2024/
     ├── Photos/

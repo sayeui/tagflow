@@ -2,21 +2,16 @@
 //!
 //! 提供资源库的 CRUD 操作、连接测试和扫描触发功能。
 
-use std::collections::HashSet;
-use std::sync::{LazyLock, Mutex};
-
 use axum::{
     Json,
     extract::{Path as AxumPath, State},
     http::StatusCode,
 };
 use sqlx::SqlitePool;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
+use crate::engine::scanner::{release_scan_lock, try_acquire_scan_lock};
 use crate::models::dto::{CreateLibraryRequest, LibraryResponse, TestConnectionResponse};
-
-/// 正在扫描的资源库 ID 集合（进程内并发防护）
-static SCANNING: LazyLock<Mutex<HashSet<i32>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
 
 /// 验证路径安全性（防止路径遍历攻击）
 ///
@@ -96,7 +91,8 @@ fn validate_local_path_readable(base_path: &str) -> Result<(), String> {
 ///     "name": "我的照片",
 ///     "protocol": "local",
 ///     "base_path": "/mnt/photos",
-///     "last_scanned_at": "2024-01-01T00:00:00Z"
+///     "last_scanned_at": "2024-01-01T00:00:00Z",
+///     "scan_interval_secs": 3600
 ///   }
 /// ]
 /// ```
@@ -111,7 +107,13 @@ pub async fn list_libraries(
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let response: Vec<LibraryResponse> = libraries.into_iter().map(|lib| lib.into()).collect();
+    // 全局扫描间隔（env TAGFLOW_SCAN_INTERVAL，clamp ≥60s），所有库共享同一值。
+    // 前端据此推算「预计下次扫描」= last_scanned_at + scan_interval_secs。
+    let scan_interval_secs = crate::infra::config::scan_interval_secs() as i64;
+    let response: Vec<LibraryResponse> = libraries
+        .into_iter()
+        .map(|lib| LibraryResponse::from_library(lib, scan_interval_secs))
+        .collect();
 
     info!("返回 {} 个资源库", response.len());
     Ok(Json(response))
@@ -299,11 +301,20 @@ pub async fn test_library_connection(
 /// - 404: 资源库不存在
 /// - 409: 该资源库已有扫描进行中
 /// - 500: 服务器错误
+///
+/// # 实现说明
+/// 同步语义：调用方在 HTTP 响应里即可知道是否被 409 拒绝。
+/// 共享扫描逻辑由 [`crate::engine::scanner::run_scan_with_lock_held`] 提供，
+/// 与定时调度（`engine::scheduler`）共用，杜绝复制粘贴（详见
+/// code-reuse-thinking-guide.md）。本函数职责收敛为：
+/// 1. 同步查库（404）；
+/// 2. 同步尝试加 409 锁（409）；
+/// 3. spawn 后台任务调 `run_scan_with_lock_held` + 释放锁，立即返 202。
 pub async fn trigger_scan(
     State(pool): State<SqlitePool>,
     AxumPath(id): AxumPath<i32>,
 ) -> StatusCode {
-    // 获取资源库配置
+    // 1. 同步查库：不存在 → 404，DB 错误 → 500
     let library = match sqlx::query_as::<_, crate::models::db::Library>(
         "SELECT * FROM libraries WHERE id = ?",
     )
@@ -316,41 +327,23 @@ pub async fn trigger_scan(
         Err(_) => return StatusCode::INTERNAL_SERVER_ERROR,
     };
 
-    // 并发防护：同库扫描进行中则拒绝（临界区仅做插入，不跨 await）
-    {
-        let mut scanning = SCANNING.lock().unwrap_or_else(|e| e.into_inner());
-        if !scanning.insert(id) {
-            warn!("资源库正在扫描中，拒绝重复触发: id={}", id);
-            return StatusCode::CONFLICT;
-        }
+    // 2. 同步 try lock：同库扫描进行中 → 409（调用方立即拿到拒绝信号）
+    if !try_acquire_scan_lock(id) {
+        warn!("资源库正在扫描中，拒绝重复触发: id={}", id);
+        return StatusCode::CONFLICT;
     }
 
     info!("扫描任务已接受: id={}, name={}", id, library.name);
 
+    // 3. 锁已持有，spawn 后台执行共享扫描函数；完成后释放锁
     tokio::spawn(async move {
-        let scanner = crate::engine::scanner::Scanner::new(pool.clone());
-        match scanner.scan_library(&library).await {
-            Ok(_) => {
-                match sqlx::query(
-                    "UPDATE libraries SET last_scanned_at = CURRENT_TIMESTAMP WHERE id = ?",
-                )
-                .bind(id)
-                .execute(&pool)
-                .await
-                {
-                    Ok(_) => info!("资源库扫描成功: id={}, name={}", id, library.name),
-                    Err(e) => error!("更新扫描时间失败: id={}, {}", id, e),
-                }
-            }
-            Err(e) => {
-                error!("资源库扫描失败: id={}, name={}, {}", id, library.name, e);
-            }
+        let outcome = crate::engine::scanner::run_scan_with_lock_held(&pool, id).await;
+        // 无论 outcome（Performed / NotFound / Err），都释放本任务持有的锁
+        release_scan_lock(id);
+        // 共享函数内部已对成功/失败分别记 info/error 日志，这里只在异常时额外 debug
+        if let Err(e) = outcome {
+            debug!("后台扫描任务结束于错误: id={}, {}", id, e);
         }
-        // 无论成败，释放扫描锁
-        SCANNING
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .remove(&id);
     });
 
     StatusCode::ACCEPTED

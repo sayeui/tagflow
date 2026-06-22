@@ -95,6 +95,16 @@ async fn main() -> anyhow::Result<()> {
     });
     info!("后台任务 Worker 已启动");
 
+    // 启动定时扫描调度器（与手动触发共享 409 锁，首轮立即扫描所有库）
+    let pool_for_scheduler = pool.clone();
+    tokio::spawn(async move {
+        tagflow_core::engine::scheduler::start_scan_scheduler(pool_for_scheduler).await;
+    });
+    info!(
+        "定时扫描调度器已启动，间隔 {} 秒",
+        infra::config::scan_interval_secs()
+    );
+
     // 构建路由
     // 1. 公开路由（无需认证）
     let auth_routes = Router::new()

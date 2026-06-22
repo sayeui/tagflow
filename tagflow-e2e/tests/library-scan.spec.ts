@@ -27,8 +27,38 @@ import { getSeededLibraryId } from '../lib/env'
  *     的窗口——对小夹具（5 张图 < 1s 扫完）几乎不可能，且重试会危及隔离。
  *     故 409 不在自动化覆盖范围，已知缺口留给后续手测/集成测试。
  *
+ * scheduled-scan PR3 引入的时序变化：
+ *   playwright.config.ts 现在注入 TAGFLOW_SCAN_INTERVAL=2，scheduler 每 2s 扫一轮
+ *   所有库（与手动 trigger_scan 共享同一把 409 锁）。这意味着手动 trigger_scan 有
+ *   小概率撞上 scheduler 正在扫描 → 拿到 409。这是合法的瞬时态（后端契约未变），
+ *   不是回归。下方 202 断言用 triggerScanAcceptingSchedulerConflict 包一层短重试
+ *   （收到 409 等几百毫秒再试，最多 3 次），把"必为 202"的语义从"第一次就 202"
+ *   放宽为"短时间内一定能拿到 202"。既不削弱断言意图，又对 scheduler 抖动稳健。
+ *
  * 隔离：正常扫描用 seeded 库（不破坏其状态）；额外创建的临时库用后即删。
  */
+
+/**
+ * 触发扫描并容忍与 scheduler 的瞬时 409 冲突。
+ *
+ * 收到 409 时短退避后重试，最多 3 次；最终返回最后一次响应（调用方按需断言 status）。
+ * 收到非 409 立即返回。仅在 e2e（scheduler 2s 频扫）下需要，production 不受影响。
+ */
+async function triggerScanAcceptingSchedulerConflict(
+  ctx: Parameters<typeof triggerScan>[0],
+  libraryId: number,
+): ReturnType<typeof triggerScan> {
+  const maxAttempts = 3
+  let resp: Awaited<ReturnType<typeof triggerScan>> | null = null
+  for (let i = 0; i < maxAttempts; i++) {
+    resp = await triggerScan(ctx, libraryId)
+    if (resp.status() !== 409) return resp
+    // scheduler 持有锁：等 300ms 让它扫完（5 张图 <100ms），再试
+    await new Promise((r) => setTimeout(r, 300))
+  }
+  // 三次都 409：返回最后一次让调用方断言失败暴露问题（而非在这里 throw）
+  return resp!
+}
 
 test.describe('资源库扫描触发', () => {
   test('对 seeded 库触发扫描返回 202 ACCEPTED，且 last_scanned_at 被更新', async () => {
@@ -44,7 +74,9 @@ test.describe('资源库扫描触发', () => {
       expect(beforeTs, 'globalSetup 扫描后应已写入 last_scanned_at').not.toBeNull()
 
       // 触发扫描（seeded 库扫描在 globalSetup 已完成，SCANNING 锁已释放 → 必 202）。
-      const resp = await triggerScan(ctx, libraryId)
+      // scheduler 2s 频扫可能瞬时持锁 → 409；triggerScanAcceptingSchedulerConflict
+      // 包了短重试，把"必为 202"放宽为"短时间内一定能拿到 202"。
+      const resp = await triggerScanAcceptingSchedulerConflict(ctx, libraryId)
       expect(resp.status()).toBe(202)
 
       // 轮询 libraries 直到 last_scanned_at 推进到 afterTs（扫描完成后异步更新）。
@@ -99,7 +131,10 @@ test.describe('资源库扫描触发', () => {
       tmpId = hit!.id
 
       // 3. 触发扫描 → 202
-      const scanResp = await triggerScan(ctx, tmpId)
+      //    注：scheduler 2s 频扫可能刚扫到这个新库并持锁 → 409；
+      //    即便如此 scheduler 自己也会在 2s 内完成扫描，last_scanned_at 仍会推进。
+      //    这里仍想拿到 202 以验证手动入口，故包一层 409 容忍重试。
+      const scanResp = await triggerScanAcceptingSchedulerConflict(ctx, tmpId)
       expect(scanResp.status()).toBe(202)
 
       // 4. 轮询 last_scanned_at：从 null 推进到非 null，证明扫描完成。

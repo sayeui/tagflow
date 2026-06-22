@@ -26,6 +26,8 @@ export interface LibraryDTO {
   protocol: string
   base_path: string
   last_scanned_at: string | null
+  /** 全局扫描间隔（秒），前端据此推算「预计下次扫描」。 */
+  scan_interval_secs: number
 }
 
 /**

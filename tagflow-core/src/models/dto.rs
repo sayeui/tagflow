@@ -121,6 +121,10 @@ pub struct CreateLibraryRequest {
 }
 
 /// 资源库响应
+///
+/// `scan_interval_secs` 来自全局配置（[`crate::infra::config::scan_interval_secs`]），
+/// 非数据库字段——所有库共享同一间隔（参见 PRD「全局单定时器 + 全局 env 间隔」决策）。
+/// 前端据此推算「预计下次扫描」= `last_scanned_at + scan_interval_secs`。
 #[derive(Serialize, Debug)]
 pub struct LibraryResponse {
     pub id: i32,
@@ -128,16 +132,22 @@ pub struct LibraryResponse {
     pub protocol: String,
     pub base_path: String,
     pub last_scanned_at: Option<DateTime<Utc>>,
+    pub scan_interval_secs: i64,
 }
 
-impl From<Library> for LibraryResponse {
-    fn from(lib: Library) -> Self {
+impl LibraryResponse {
+    /// 从 DB 模型构造响应，附带全局扫描间隔。
+    ///
+    /// 不用 `From<Library>`：`scan_interval_secs` 不属于 `Library`，需显式传入，
+    /// 避免在 `From` 实现里偷偷读环境变量造成隐式依赖。
+    pub fn from_library(lib: Library, scan_interval_secs: i64) -> Self {
         LibraryResponse {
             id: lib.id,
             name: lib.name,
             protocol: lib.protocol,
             base_path: lib.base_path,
             last_scanned_at: lib.last_scanned_at,
+            scan_interval_secs,
         }
     }
 }
