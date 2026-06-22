@@ -508,3 +508,37 @@ v0.2.0 第一块「定时增量扫描」完整落地。brainstorm 收敛 5 决�
 ### Next Steps
 
 - None - task complete
+
+
+## Session 16: 发版准备 + 修复 SQLite database is locked
+
+**Date**: 2026-06-22
+**Task**: 发版准备 + 修复 SQLite database is locked
+**Branch**: `main`
+
+### Summary
+
+Session 聚焦 v0.2.0 发版准备 + 一个发版阻塞 P0 bug 修复。(1) 发版评估：核心闭环完整、e2e 11 守护，可发 v0.2.0 正式版，但 e2e 隔离夹具覆盖不到真实环境/升级/长期运行，需手动验收。(2) 发版准备产物：doc/发版验收测试用例.md（P0/P1/P2 清单含升级路径/定时扫描真实间隔）、scripts/sync-nas.sh（白名单 rsync 同步源码到 NAS）、.env.example+docker-compose 补 TAGFLOW_SCAN_INTERVAL、cache 目录注释写清（chown 是关键，bind mount UID 1000）。(3) rsync 优化：黑名单→白名单（通用 exclude 不含 / 匹配任意层级、放 include 前），dry-run 发现并修复 .env/tagflow.db 误同步。(4) 修复 SQLite database is locked（P0）：扫描图片库 worker 报错。根因有二——busy_timeout 未设（scheduler/worker/手动扫描并发写 SQLITE_BUSY code 5）+ foreign_keys per-connection 只设一个（ON DELETE CASCADE 对多数连接不强制，隐藏 bug）。修复 infra/db.rs 改用 SqliteConnectOptions 对 pool 每个连接统一设 busy_timeout(5s)+foreign_keys(true)+WAL，3 回归测试（并发写不锁/CASCADE 对所有连接/PRAGMA 生效）。spec 入 backend/database-guidelines「SQLite 连接配置契约」节。cargo test 67/clippy/e2e 11 全绿。NAS 真实复验待用户重新同步部署。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `9b13516` | (see git log) |
+| `78685b9` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

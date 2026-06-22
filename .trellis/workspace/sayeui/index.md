@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 15
+- **Total Sessions**: 16
 - **Last Active**: 2026-06-22
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~510 | Active |
+| `journal-1.md` | ~544 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 16 | 2026-06-22 | 发版准备 + 修复 SQLite database is locked | `9b13516`, `78685b9` | `main` |
 | 15 | 2026-06-22 | 定时增量扫描（v0.2.0 自动同步）+ git 身份配置 | `376c184` | `main` |
 | 14 | 2026-06-22 | 引入 Playwright e2e 测试框架 | `b9bb4be` | `main` |
 | 13 | 2026-06-16 | 文件视图增强——真实 e2e 验证与收尾 | `9557711` | `main` |
