@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "本任务核心是 SQLite 连接配置——PR2 要在此新增「连接配置契约」（busy_timeout + foreign_keys 必须用 SqliteConnectOptions 对所有 pool 连接设，禁手动 PRAGMA）。实现 infra/db.rs 改造时参照现有 DB 模式规范"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "单元测试规范（并发写测试、foreign_keys CASCADE 测试）、cargo test/clippy 不回归、错误用 anyhow 带上下文"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "worker:114 的 database is locked 错误处理上下文；修复后并发写不应再触发该错误路径"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "连接配置改动若有日志（启动打印 busy_timeout 等），遵循 tracing 规范"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "scheduler/worker/scanner 三路并发写 DB 是跨层并发根源；理解数据流才能正确设计 busy_timeout 与验证并发安全"}

@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "核对：SqliteConnectOptions 正确设 busy_timeout/foreign_keys/WAL 对所有连接生效；手动 PRAGMA 已移除；PR2 的连接配置契约已写入"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "核对：cargo test 全过（含新并发写/CASCADE 测试）、clippy 干净、无 unwrap panic"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "核对：并发写场景不再触发 database is locked 错误路径"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "核对 scheduler/worker/scanner 并发写在 busy_timeout 下不再锁、CASCADE 跨层可靠"}
