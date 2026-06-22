@@ -1,0 +1,6 @@
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "核对：trigger_scan 与 scheduler 确实共用 scan_library_job，无两份扫描逻辑复制粘贴；409 锁移到 engine 层后 api 与 scheduler 共用同一把"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "核对：cargo test 不回归、scan_interval clamp 单测、scheduler/main.rs spawn 合规、零破坏现有行为"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "核对扫描事务/并发正确、last_scanned_at 更新、SCANNING 锁 release 与 acquire 成对（无死锁）"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "核对：手动触发按钮与 409 提示未破坏、next_scan 展示合规、npm run build 干净"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "核对 scan_interval_secs DTO 镜像后端（snake_case、类型、null 处理一致）"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "核对 scheduler→scanner→worker 跨层链路完整、409 锁在手动+定时两条路径都生效、前端 next_scan 计算正确"}

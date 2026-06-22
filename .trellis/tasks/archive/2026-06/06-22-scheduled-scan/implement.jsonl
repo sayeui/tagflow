@@ -1,0 +1,10 @@
+{"file": ".trellis/spec/guides/code-reuse-thinking-guide.md", "reason": "本任务核心是去重——把 trigger_scan 内联的扫描逻辑（SCANNING 锁 + scan_library + 更新 last_scanned_at）抽成共享 scan_library_job，让手动触发与定时 scheduler 共用同一把 409 锁。必须按此指南识别抽取点，避免复制粘贴两份扫描逻辑"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "scheduler→scanner(scan_library)→worker(缩略图任务入队) 是跨层异步链路；前端 scan_interval_secs DTO→Libraries.vue next_scan 展示也是跨层。需理解数据流才能正确实现并发防护与状态流转"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "扫描涉及 libraries/files/file_tags/tasks 表读写、last_scanned_at 更新、事务边界"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "409 并发防护（SCANNING 锁）的语义、单库扫描失败不阻塞其他库的错误处理、ScanOutcome 枚举设计"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "scheduler 每轮/每库扫描的 info/warn/error 日志（启动、轮次、跳过、失败重试）须遵循 tracing 规范，禁 println"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "单元测试规范（scan_interval clamp、ScanOutcome）、零破坏现有 cargo test、main.rs spawn 模式"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Libraries.vue 改动须遵守：保留现有手动触发按钮与 409 提示不动、新增 next_scan 展示用 Tailwind、npm run build 干净"}
+{"file": ".trellis/spec/frontend/type-safety.md", "reason": "新增 scan_interval_secs DTO 字段须镜像后端 snake_case（i64 → number），与现有 last_scanned_at 的 null 处理一致"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Libraries.vue 组件改动遵守 script setup + Composition API 风格"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "libraryApi 扩展（若 next_scan 经 store）须遵守 options store + API→store→view 模式"}
