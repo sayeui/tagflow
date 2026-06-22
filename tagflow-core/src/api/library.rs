@@ -8,7 +8,7 @@ use axum::{
     http::StatusCode,
 };
 use sqlx::SqlitePool;
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::engine::scanner::{release_scan_lock, try_acquire_scan_lock};
 use crate::models::dto::{CreateLibraryRequest, LibraryResponse, TestConnectionResponse};
@@ -192,11 +192,37 @@ pub async fn create_library(
 /// # 失败响应
 /// - 404: 资源库不存在
 /// - 500: 服务器错误
+///
+/// # 标签清理
+/// libraries 与 tags 表无外键关联，CASCADE 链（files/file_tags/tasks）不会清到
+/// tags。删除前先收集该库文件关联过的 tag_ids，DELETE 后对每个 tag_id 调
+/// [`crate::api::file::cleanup_orphan_tag`]：COUNT(file_tags)=0 且无子节点的标签
+/// （含 path/ext/type/time/user 所有类别）会被递归剪枝，跨库共享标签因他库仍有
+/// status=1 关联而保留。清理失败仅记 error，不阻塞删库结果（删库本身已成功）。
 pub async fn delete_library(
     State(pool): State<SqlitePool>,
     AxumPath(id): AxumPath<i32>,
 ) -> StatusCode {
     info!("删除资源库: id={}", id);
+
+    // 删库前：收集该库文件关联过的 tag_ids（DELETE 后 file_tags 会被 CASCADE 清空，
+    // 届时无法回溯受影响的标签）。
+    let affected_tag_ids: Vec<i32> = match sqlx::query_scalar::<_, i32>(
+        "SELECT DISTINCT ft.tag_id FROM file_tags ft \
+         JOIN files f ON ft.file_id = f.id \
+         WHERE f.library_id = ?",
+    )
+    .bind(id)
+    .fetch_all(&pool)
+    .await
+    {
+        Ok(ids) => ids,
+        Err(e) => {
+            error!("删库前收集受影响 tag_ids 失败 library_id={}: {}", id, e);
+            // 不阻塞删库：直接 DELETE，仅放弃 tag 清理。
+            Vec::new()
+        }
+    };
 
     let result = sqlx::query("DELETE FROM libraries WHERE id = ?")
         .bind(id)
@@ -206,6 +232,10 @@ pub async fn delete_library(
     match result {
         Ok(res) if res.rows_affected() > 0 => {
             info!("资源库删除成功: id={}", id);
+            // best-effort 清理孤儿 tags；失败仅记日志，不影响删库已成功的 204。
+            for tag_id in &affected_tag_ids {
+                crate::api::file::cleanup_orphan_tag(&pool, *tag_id).await;
+            }
             StatusCode::NO_CONTENT
         }
         Ok(_) => {
@@ -402,5 +432,183 @@ mod tests {
         assert!(validate_path_security("/data/./foo").is_err());
         assert!(validate_path_security("relative/path").is_err());
         assert!(validate_path_security("/mnt/photos").is_ok());
+    }
+
+    // ========== delete_library 孤儿标签清理 ==========
+
+    /// 构造单连接内存库（schema 与 migrations/202512260001_init.sql 对齐）。
+    async fn setup_db() -> SqlitePool {
+        let pool = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .expect("connect in-memory");
+        sqlx::query("PRAGMA foreign_keys = ON")
+            .execute(&pool)
+            .await
+            .unwrap();
+        for stmt in [
+            "CREATE TABLE libraries (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, protocol TEXT NOT NULL, base_path TEXT NOT NULL, config_json TEXT, last_scanned_at DATETIME)",
+            "CREATE TABLE tags (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, category TEXT NOT NULL, parent_id INTEGER REFERENCES tags(id) ON DELETE CASCADE, UNIQUE(name, parent_id))",
+            "CREATE TABLE files (id INTEGER PRIMARY KEY AUTOINCREMENT, library_id INTEGER NOT NULL REFERENCES libraries(id) ON DELETE CASCADE, parent_path TEXT NOT NULL, filename TEXT NOT NULL, extension TEXT, size INTEGER NOT NULL, mtime INTEGER NOT NULL, hash TEXT, status INTEGER DEFAULT 1, indexed_at DATETIME DEFAULT CURRENT_TIMESTAMP)",
+            "CREATE TABLE file_tags (file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE, tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE, source TEXT DEFAULT 'auto', PRIMARY KEY(file_id, tag_id))",
+        ] {
+            sqlx::query(stmt).execute(&pool).await.unwrap();
+        }
+        pool
+    }
+
+    async fn insert_library(pool: &SqlitePool, name: &str) -> i32 {
+        sqlx::query("INSERT INTO libraries (name, protocol, base_path) VALUES (?, 'local', '/tmp')")
+            .bind(name)
+            .execute(pool)
+            .await
+            .unwrap()
+            .last_insert_rowid() as i32
+    }
+
+    async fn insert_tag(pool: &SqlitePool, name: &str, category: &str, parent: Option<i32>) -> i32 {
+        sqlx::query("INSERT INTO tags (name, category, parent_id) VALUES (?, ?, ?)")
+            .bind(name)
+            .bind(category)
+            .bind(parent)
+            .execute(pool)
+            .await
+            .unwrap()
+            .last_insert_rowid() as i32
+    }
+
+    async fn insert_file(pool: &SqlitePool, library_id: i32, filename: &str) -> i32 {
+        sqlx::query(
+            "INSERT INTO files (library_id, parent_path, filename, size, mtime) VALUES (?, '', ?, 1, 0)",
+        )
+        .bind(library_id)
+        .bind(filename)
+        .execute(pool)
+        .await
+        .unwrap()
+        .last_insert_rowid() as i32
+    }
+
+    async fn link(pool: &SqlitePool, file_id: i32, tag_id: i32) {
+        sqlx::query(
+            "INSERT OR IGNORE INTO file_tags (file_id, tag_id, source) VALUES (?, ?, 'auto')",
+        )
+        .bind(file_id)
+        .bind(tag_id)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
+    async fn count_tags_by_id(pool: &SqlitePool, ids: &[i32]) -> i64 {
+        if ids.is_empty() {
+            return 0;
+        }
+        let placeholders = std::iter::repeat_n("?".to_string(), ids.len())
+            .collect::<Vec<_>>()
+            .join(",");
+        let sql = format!("SELECT COUNT(*) FROM tags WHERE id IN ({})", placeholders);
+        let mut q = sqlx::query_scalar::<_, i64>(&sql);
+        for id in ids {
+            q = q.bind(id);
+        }
+        q.fetch_one(pool).await.unwrap()
+    }
+
+    /// 删库后该库独有的 path/ext/type/time 标签应被清理（无残留孤儿）。
+    #[tokio::test]
+    async fn delete_library_cleans_orphan_tags_from_deleted_library() {
+        let pool = setup_db().await;
+        let lib = insert_library(&pool, "lib").await;
+
+        // 建库独有的标签：path 层级 + ext + type
+        let projects = insert_tag(&pool, "Projects", "path", None).await;
+        let year2024 = insert_tag(&pool, "2024", "path", Some(projects)).await;
+        let ext_png = insert_tag(&pool, "png", "ext", None).await;
+        let type_image = insert_tag(&pool, "image", "type", None).await;
+
+        // 文件挂在 lib，并关联这些标签
+        let f = insert_file(&pool, lib, "a.png").await;
+        link(&pool, f, year2024).await;
+        link(&pool, f, ext_png).await;
+        link(&pool, f, type_image).await;
+
+        // 删库
+        let status = delete_library(State(pool.clone()), AxumPath(lib)).await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        // 所有受影响标签（叶子 + 向上递归）应被清空
+        let remaining = count_tags_by_id(&pool, &[projects, year2024, ext_png, type_image]).await;
+        assert_eq!(remaining, 0, "删库后该库独有标签应被清理");
+    }
+
+    /// 跨库共享标签保留：删一个库后，他库仍有 status=1 文件关联的标签应保留。
+    #[tokio::test]
+    async fn delete_library_keeps_cross_library_shared_tags() {
+        let pool = setup_db().await;
+        let lib_a = insert_library(&pool, "lib-a").await;
+        let lib_b = insert_library(&pool, "lib-b").await;
+
+        // 共享 ext 标签：被两个库的文件都关联
+        let shared_ext = insert_tag(&pool, "png", "ext", None).await;
+        // lib_a 独有的 path 标签
+        let a_only = insert_tag(&pool, "OnlyInA", "path", None).await;
+
+        let fa = insert_file(&pool, lib_a, "a.png").await;
+        let fb = insert_file(&pool, lib_b, "b.png").await;
+        link(&pool, fa, shared_ext).await;
+        link(&pool, fb, shared_ext).await;
+        link(&pool, fa, a_only).await;
+
+        // 删 lib_a
+        let status = delete_library(State(pool.clone()), AxumPath(lib_a)).await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        // shared_ext 仍被 lib_b 的文件关联 → 保留
+        let shared_alive: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tags WHERE id = ?")
+            .bind(shared_ext)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(shared_alive, 1, "跨库共享标签应保留");
+
+        // lib_a 独有的 path 标签应被清
+        let a_only_alive: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tags WHERE id = ?")
+            .bind(a_only)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(a_only_alive, 0, "lib_a 独有标签应被清理");
+    }
+
+    /// 向上递归剪枝：叶子删后父变空也删，清空整条空链。
+    #[tokio::test]
+    async fn delete_library_prunes_orphan_chain_recursively() {
+        let pool = setup_db().await;
+        let lib = insert_library(&pool, "lib").await;
+
+        // path 层级 Projects → 2024 → Design（三层），仅叶子关联文件
+        let projects = insert_tag(&pool, "Projects", "path", None).await;
+        let y2024 = insert_tag(&pool, "2024", "path", Some(projects)).await;
+        let design = insert_tag(&pool, "Design", "path", Some(y2024)).await;
+
+        let f = insert_file(&pool, lib, "x.png").await;
+        link(&pool, f, design).await;
+
+        // 删库 → CASCADE 删 files/file_tags → 三层 path 链全部变空 → 全部清
+        let status = delete_library(State(pool.clone()), AxumPath(lib)).await;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let remaining = count_tags_by_id(&pool, &[projects, y2024, design]).await;
+        assert_eq!(remaining, 0, "整条空链都应被递归剪枝");
+    }
+
+    /// 删不存在的库 → 404，且不触发任何清理。
+    #[tokio::test]
+    async fn delete_library_returns_404_for_missing_id() {
+        let pool = setup_db().await;
+        let status = delete_library(State(pool.clone()), AxumPath(999_987)).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
     }
 }

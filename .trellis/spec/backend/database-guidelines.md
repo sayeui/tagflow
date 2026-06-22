@@ -168,3 +168,24 @@ let pool = SqlitePoolOptions::new()
 ```
 
 参考实现：`tagflow-core/src/infra/db.rs::init_db`。
+
+### 孤儿标签清理（删库 + 标签树过滤在线文件）
+
+删库或文件离线（软删 status=0）后，标签树不得显示无效标签（孤儿 + 离线关联），删库后 `tags` 表不堆积孤儿。两机制配合：
+
+**1. 标签树显示层过滤（`api/tag.rs::get_tag_tree`）**
+- 只返回**有 status=1（在线）文件关联**的标签：`SELECT DISTINCT tag_id FROM file_tags ft JOIN files f ON ft.file_id = f.id WHERE f.status = 1` 得「在线 tag_id 集合」，`build_tree` 后递归剪枝。
+- **按子树剪枝**：节点自身不在集合且所有子节点被剪则剪；父标签在子标签有在线文件时仍显示（树结构完整性）。
+- 纯显示层、不改 tags 表。**同时解决**：删库孤儿（无 file_tags）+ 扫描删文件离线（file_tags 关联 status=0）的「标签显示但查询空」。
+- **软删天然支持回归**：`mark_as_lost`（status=0）文件恢复（status→1）时，过滤重算、标签自动重现，无需额外处理。
+
+**2. 删库孤儿清理（`api/library.rs::delete_library` + `cleanup_orphan_tag`）**
+- `tags` 表无 `library_id` FK、不在删库 CASCADE 链 → 删库后 tags 节点残留为真孤儿，必须显式清理。
+- `cleanup_orphan_tag`（`api/file.rs`，原 `cleanup_orphan_user_tag` 去除 user 限制）适用**所有类别**（path/ext/type/time/user），递归逻辑：`COUNT(file_tags)=0 且 COUNT(子节点)=0` 则删、向上递归。
+- `delete_library` 流程：**删库前**查受影响 tag_ids（`SELECT DISTINCT tag_id FROM file_tags WHERE file_id IN (SELECT id FROM files WHERE library_id = ?)`）→ `DELETE library`（CASCADE 删 files/file_tags）→ **删库后**对每个 tag_id 调 `cleanup_orphan_tag`。清理失败 `error!` 记日志、不阻塞删库 204。
+
+**跨库共享标签天然安全**：`#year:2026`、`Projects/` 被多库共用时，COUNT/EXISTS 判定保证「他库有 status=1 关联则保留/显示」，只删/隐藏真孤儿。
+
+参考实现：`api/tag.rs::get_tag_tree`（过滤）、`api/library.rs::delete_library`（删库清理）、`api/file.rs::cleanup_orphan_tag`（泛化递归清理）。回归测试：`tag.rs` 标签树过滤 5 测、`library.rs` 删库清理 4 测、e2e `tag-tree-cleanup.spec.ts`（删库孤儿 + 软删隐藏/恢复）。
+
+> **Warning**：`cleanup_orphan_tag` 泛化后，`remove_file_tag`（删 manual 关联）也会清 path/ext/type/time 空节点——这是期望行为（auto 标签删关联后变空也应清），非 bug；但**只清 COUNT=0 的真孤儿**，仍有其他文件关联的 auto 标签不动。

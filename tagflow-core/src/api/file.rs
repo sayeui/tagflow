@@ -705,33 +705,32 @@ async fn ensure_user_tag_path(pool: &SqlitePool, parts: &[String]) -> Result<i32
     Ok(parent.expect("parse_tag_path 已保证 parts 非空"))
 }
 
-/// 删除无引用且无子节点的 `user` 标签，并向上递归清理因之变空的祖先。
+/// 删除无引用且无子节点的标签，并向上递归清理因之变空的祖先。
 ///
-/// 仅清理 `user` 类别（path/type/time 由扫描器管理，不在此处理）。
-/// best-effort：任何查询/删除失败记 error 后退出循环，不影响已删除的关联。
-async fn cleanup_orphan_user_tag(pool: &SqlitePool, mut tag_id: i32) {
+/// 适用所有类别（path / type / time / user / ext 等）：COUNT(file_tags)=0 且
+/// COUNT(子节点)=0 则删，并向父递归——既覆盖手动删除标签关联后的 `user` 空链，
+/// 也覆盖删库后失去全部关联的 path/ext/type/time 孤儿节点。
+///
+/// best-effort：任何查询/删除失败记 error 后退出循环，不影响已删除的关联
+/// （`unwrap_or(1)` 保守视为「仍有引用」停止清理，非 panic 降级安全）。
+pub(crate) async fn cleanup_orphan_tag(pool: &SqlitePool, mut tag_id: i32) {
     loop {
         #[derive(sqlx::FromRow)]
         struct NodeRow {
-            category: String,
             parent_id: Option<i32>,
         }
-        let node =
-            match sqlx::query_as::<_, NodeRow>("SELECT category, parent_id FROM tags WHERE id = ?")
-                .bind(tag_id)
-                .fetch_optional(pool)
-                .await
-            {
-                Ok(n) => n,
-                Err(e) => {
-                    error!("清理孤儿标签查询失败 tag_id={}: {}", tag_id, e);
-                    break;
-                }
-            };
+        let node = match sqlx::query_as::<_, NodeRow>("SELECT parent_id FROM tags WHERE id = ?")
+            .bind(tag_id)
+            .fetch_optional(pool)
+            .await
+        {
+            Ok(n) => n,
+            Err(e) => {
+                error!("清理孤儿标签查询失败 tag_id={}: {}", tag_id, e);
+                break;
+            }
+        };
         let Some(node) = node else { break };
-        if node.category != "user" {
-            break;
-        }
 
         // 仍被文件引用或有子节点 → 不是孤儿，停止向上清理。
         // unwrap_or(1) 非 panic：查询失败时保守视为「仍有引用」，停止清理（降级安全）。
@@ -755,10 +754,10 @@ async fn cleanup_orphan_user_tag(pool: &SqlitePool, mut tag_id: i32) {
             .execute(pool)
             .await
         {
-            error!("删除空 user 标签失败 tag_id={}: {}", tag_id, e);
+            error!("删除空标签失败 tag_id={}: {}", tag_id, e);
             break;
         }
-        info!("自动清理空 user 标签: tag_id={}", tag_id);
+        info!("自动清理空标签: tag_id={}", tag_id);
 
         match parent {
             Some(pid) => tag_id = pid,
@@ -769,7 +768,7 @@ async fn cleanup_orphan_user_tag(pool: &SqlitePool, mut tag_id: i32) {
 
 /// 移除文件的手动标签关联：校验来源为 `manual`（auto 返回 403），关联不存在返回 404。
 ///
-/// 不做自动清理（由调用方按需触发 [`cleanup_orphan_user_tag`]）。
+/// 不做自动清理（由调用方按需触发 [`cleanup_orphan_tag`]）。
 async fn remove_manual_link(
     pool: &SqlitePool,
     file_id: i32,
@@ -891,8 +890,8 @@ pub async fn remove_file_tag(
     ensure_file_exists(&pool, id).await?;
     remove_manual_link(&pool, id, tag_id).await?;
     info!("移除手动标签: file_id={} tag_id={}", id, tag_id);
-    // 删除关联后，向上递归清理空 user 节点（best-effort）
-    cleanup_orphan_user_tag(&pool, tag_id).await;
+    // 删除关联后，向上递归清理空节点（best-effort，泛化到所有类别）
+    cleanup_orphan_tag(&pool, tag_id).await;
     Ok(Json(fetch_file_tags(&pool, id).await?))
 }
 
@@ -1296,7 +1295,7 @@ mod tests {
 
         // 移除 f1 的关联：叶子仍有 f2 引用 → 不清理
         remove_manual_link(&pool, f1, leaf).await.unwrap();
-        cleanup_orphan_user_tag(&pool, leaf).await;
+        cleanup_orphan_tag(&pool, leaf).await;
         let leaf_alive: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tags WHERE id = ?")
             .bind(leaf)
             .fetch_one(&pool)
@@ -1306,7 +1305,7 @@ mod tests {
 
         // 再移除 f2 的关联：叶子无引用无子 → 删；父「项目」也无引用无子 → 递归删
         remove_manual_link(&pool, f2, leaf).await.unwrap();
-        cleanup_orphan_user_tag(&pool, leaf).await;
+        cleanup_orphan_tag(&pool, leaf).await;
         let user_left: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tags WHERE category='user'")
             .fetch_one(&pool)
             .await
@@ -1315,11 +1314,46 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn cleanup_does_not_touch_auto_categories() {
+    async fn cleanup_also_handles_auto_categories() {
         let pool = setup_db().await;
-        // ext 标签（非 user 类别）即使无引用也不应被清理
+        // 泛化后：非 user 类别（如 ext）失去引用后同样应被清理（删库场景的核心需求）。
         let ext_tag = insert_tag(&pool, "txt", "ext", None).await;
-        cleanup_orphan_user_tag(&pool, ext_tag).await;
+        // 无 file_tags 关联，无子节点 → 孤儿，应被删
+        cleanup_orphan_tag(&pool, ext_tag).await;
+        let alive: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tags WHERE id = ?")
+            .bind(ext_tag)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(alive, 0);
+    }
+
+    #[tokio::test]
+    async fn cleanup_prunes_auto_chain_when_orphan() {
+        let pool = setup_db().await;
+        // path 层级：Projects(根) → 2024(子)，无文件关联 → 整条链都应被清
+        let root = insert_tag(&pool, "Projects", "path", None).await;
+        let child = insert_tag(&pool, "2024", "path", Some(root)).await;
+        // 从叶子向上清
+        cleanup_orphan_tag(&pool, child).await;
+        let remaining: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tags WHERE id IN (?, ?)")
+            .bind(root)
+            .bind(child)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(remaining, 0); // 父子链全清
+    }
+
+    #[tokio::test]
+    async fn cleanup_keeps_auto_tag_when_still_referenced() {
+        let pool = setup_db().await;
+        // 即便泛化后，有关联的 auto 标签仍应保留（不会误删跨库共享 / 还有引用的标签）。
+        let ext_tag = insert_tag(&pool, "txt", "ext", None).await;
+        let f = insert_file(&pool, "a.txt").await;
+        link(&pool, f, ext_tag).await;
+
+        cleanup_orphan_tag(&pool, ext_tag).await;
         let alive: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tags WHERE id = ?")
             .bind(ext_tag)
             .fetch_one(&pool)

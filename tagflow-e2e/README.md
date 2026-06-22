@@ -44,6 +44,19 @@ Playwright 顺序：**webServer 启动 → globalSetup → tests → globalTeard
 若 404 用 `expect.poll` 轮询直到 200（覆盖 worker 5s 一轮 + ffmpeg 处理余量）。
 两条路径都让用例在任意缓存状态下通过。
 
+### 标签树清理用例（`tests/tag-tree-cleanup.spec.ts`）
+
+验证「孤儿标签清理」后端契约：
+
+- **删库孤儿清理**：临时库带独有子目录名（随机串），扫描后该子目录的 path 标签出现；
+  删除临时库后该标签消失（`delete_library` 触发 `cleanup_orphan_tag` 真清理 tags 表），
+  seeded 库的 path 标签仍健在（跨库共享保留语义）。
+- **扫描删文件标签隐藏**（软删语义保留）：临时库文件物理消失后 scheduler `mark_as_lost`
+  软删（status=0），独有标签被 `get_tag_tree` 过滤掉；恢复文件后 status→1，标签自动回归。
+
+两条用例都用「临时库 + 随机子目录名」隔离，不触碰 seeded 库的 fixtures，scheduler 2s
+频扫对增量幂等。`expect.poll` 轮询覆盖 2s 扫描周期带来的时序延迟。
+
 ## 运行
 
 前置：本机已装 `cargo`、`node`、`ffmpeg`（缩略图用例需要；缺失会 skip）。

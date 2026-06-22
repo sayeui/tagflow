@@ -31,6 +31,17 @@ export interface LibraryDTO {
 }
 
 /**
+ * TagNode 字段镜像（对齐 tagflow-core/src/models/dto.rs::TagNode）。
+ * 后端 `get_tag_tree` 返回的树根数组；children 递归同构。
+ */
+export interface TagNodeDTO {
+  id: number
+  name: string
+  category: string
+  children: TagNodeDTO[]
+}
+
+/**
  * 建一个带 Seeded Bearer Token 的 APIRequestContext，用例结束自动 dispose。
  *
  * 用法（Playwright fixture 风格）：
@@ -109,4 +120,39 @@ export async function deleteLibrary(
   libraryId: number,
 ): Promise<APIResponse> {
   return ctx.delete(`/api/v1/libraries/${libraryId}`)
+}
+
+/**
+ * GET /api/v1/tags/tree —— 获取标签树（已过滤在线文件关联的节点）。
+ *
+ * 后端契约（tagflow-core/src/api/tag.rs::get_tag_tree）：
+ *   - 只显示有 status=1 文件关联（含子树）的标签
+ *   - 删库后的孤儿标签、仅关联离线文件的标签不返回
+ *   - 跨库共享标签：只要还有任一库的在线文件关联就保留
+ *
+ * 失败抛错（含状态码与 body 便于定位）。
+ */
+export async function fetchTagTree(ctx: APIRequestContext): Promise<TagNodeDTO[]> {
+  const resp = await ctx.get('/api/v1/tags/tree')
+  if (!resp.ok()) {
+    throw new Error(`GET /tags/tree 失败 status=${resp.status()} body=${await resp.text()}`)
+  }
+  return (await resp.json()) as TagNodeDTO[]
+}
+
+/**
+ * 在 TagNode 树中查找指定 category 下的节点（递归扁平化，仅按 name 匹配）。
+ *
+ * 用于断言某标签是否仍显示。返回 undefined 表示未找到（删库后应如此）。
+ */
+export function findTagNodeByName(
+  nodes: TagNodeDTO[],
+  name: string,
+): TagNodeDTO | undefined {
+  for (const n of nodes) {
+    if (n.name === name) return n
+    const hit = findTagNodeByName(n.children, name)
+    if (hit) return hit
+  }
+  return undefined
 }
