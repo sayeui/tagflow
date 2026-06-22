@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "核心：tags/file_tags schema（parent_id 自引用 CASCADE）、cleanup_orphan_user_tag（file.rs:712）现有递归清理逻辑是泛化基础、手动标签写操作节是同类清理先例；删库 CASCADE 链、跨库共享标签判定"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "单测规范（删库清理、标签树剪枝）、cargo test/clippy 不回归、async handler、错误 anyhow 带上下文"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "delete_library 改造的错误处理、清理失败的容错（记日志不阻塞删库结果）"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "标签树过滤 status=1 跨层（tags→file_tags→files.status）、删库 CASCADE 跨层链路；跨库共享标签的跨层判定"}
