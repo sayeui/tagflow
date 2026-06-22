@@ -105,3 +105,66 @@ fn deserialize_csv_i32<'de, D: serde::Deserializer<'de>>(de: D) -> Result<Vec<i3
 - **自动清理（best-effort）**：删除 manual 关联后，`cleanup_orphan_user_tag` 从叶子向上递归——当某 user 节点 `COUNT(file_tags)=0` 且 `COUNT(子节点)=0` 时删除，并对其 `parent_id` 继续判断，清空整条空链。**仅清理 `user` 类别**（path/type/time 由扫描器管理，不在此处理）；非关键路径，查询/删除失败记 error 后退出循环（`unwrap_or(1)` 保守视为「仍有引用」停止清理，非 panic）。
 
 参考实现：`api/file.rs` `add_file_tag` / `remove_file_tag` / `cleanup_orphan_user_tag` / `ensure_user_tag_path` / `parse_tag_path`；单测覆盖建层级/复用/auto 拒绝/自动清理父子链/不碰 auto 类别。
+
+### SQLite 连接配置契约（busy_timeout + foreign_keys per-connection）
+
+`init_db`（`infra/db.rs`）初始化 pool 时**必须用 `SqliteConnectOptions`**，对 pool **每个连接**统一设 WAL + foreign_keys + busy_timeout。这是并发写不锁、CASCADE 可靠的根基。
+
+**签名**（`SqliteConnectOptions` 链式 → `connect_with`）：
+```rust
+let options = SqliteConnectOptions::from_str(database_url)?
+    .journal_mode(SqliteJournalMode::Wal)
+    .foreign_keys(true)
+    .busy_timeout(Duration::from_secs(5));
+let pool = SqlitePoolOptions::new()
+    .max_connections(5)
+    .acquire_timeout(Duration::from_secs(3))
+    .connect_with(options)
+    .await?;
+```
+
+**为什么必须用 Options 而非手动 PRAGMA**：
+- `PRAGMA foreign_keys` / `PRAGMA busy_timeout` 都是 **per-connection**：手动 `sqlx::query("PRAGMA ...")` 只对执行它的那一个连接生效，pool 其余连接仍是默认值。
+- foreign_keys 默认 OFF → 多数连接 `ON DELETE CASCADE` 不强制（删库留孤儿 files/file_tags，历史 bug）。
+- busy_timeout 默认 0 → SQLite 写串行下并发写（scheduler 扫描写 + worker 缩略图写 + 手动扫描写）碰写锁立即 `SQLITE_BUSY`（code 5）→ `database is locked`。
+- `SqliteConnectOptions` 对 pool 每个新建连接都应用这些 PRAGMA，根治。
+
+**`acquire_timeout` ≠ `busy_timeout`（不可互相替代）**：
+- `acquire_timeout`（pool 选项）：从 pool **拿一个空闲连接**的等待超时。
+- `busy_timeout`（SQLite PRAGMA）：拿到连接后，SQL 执行遇 **写锁**（另一连接在写）时的重试等待。
+- pool 有空闲连接但 SQLite 写锁被占时，只有 `busy_timeout` 能等；反过来亦然。
+
+**错误矩阵**：
+| 场景 | 缺失配置 | 表现 |
+|---|---|---|
+| scheduler/worker/手动扫描并发写 | 无 busy_timeout | `database is locked` (code 5)，worker 更新任务状态失败、任务卡 Running |
+| 删 library 期望级联删 files/file_tags | foreign_keys 只设一个连接 | 多数连接 CASCADE 不生效，孤儿数据残留 |
+
+**回归测试**（`infra/db.rs` `#[cfg(test)]`）：
+- `test_concurrent_writes_no_deadlock`：8 并发 tokio task 各 INSERT/UPDATE，断言全成功、无 `locked`/`busy`、落库行数正确。
+- `test_foreign_keys_cascade_on_all_connections`：循环多次 `pool.acquire()` 命中**非初始连接**，DELETE library 验证 files/file_tags 级联删（真正证明 per-connection 修复，而非只测初始连接）。
+- `test_connection_pragmas_applied`：读 PRAGMA 断言 `foreign_keys=1` / `busy_timeout=5000` / `journal_mode=wal` 生效。
+
+#### Wrong（手动 PRAGMA — 两个隐藏 bug）
+```rust
+let pool = SqlitePoolOptions::new()
+    .max_connections(5)
+    .connect(database_url).await?;
+sqlx::query("PRAGMA journal_mode = WAL;").execute(&pool).await?;   // OK：WAL 是 db 级，持久
+sqlx::query("PRAGMA foreign_keys = ON;").execute(&pool).await?;    // ❌ per-connection，只一个连接生效
+// ❌ 完全没设 busy_timeout → 并发写 database is locked
+```
+
+#### Correct（SqliteConnectOptions — 对所有连接）
+```rust
+let options = SqliteConnectOptions::from_str(database_url)?
+    .journal_mode(SqliteJournalMode::Wal)
+    .foreign_keys(true)                        // ✅ 每个连接都设
+    .busy_timeout(Duration::from_secs(5));     // ✅ 每个连接都设
+let pool = SqlitePoolOptions::new()
+    .max_connections(5)
+    .acquire_timeout(Duration::from_secs(3))
+    .connect_with(options).await?;
+```
+
+参考实现：`tagflow-core/src/infra/db.rs::init_db`。
